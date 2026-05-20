@@ -285,6 +285,17 @@
           <tr><td style="color:var(--text-dim)">Errors</td><td style="color:var(--warn)">{{ last_scan.errors | join(', ') }}</td></tr>
           {% endif %}
         </table>
+        {% if last_scan.scan_command %}
+        <details style="margin-top:10px;font-size:.75rem;color:var(--text-dim);">
+          <summary style="cursor:pointer;">Diagnostics</summary>
+          <div style="margin-top:6px;font-family:ui-monospace,monospace;word-break:break-all;">
+            <strong>cmd:</strong> {{ last_scan.scan_command }}
+          </div>
+          {% if last_scan.output_tail %}
+          <div style="margin-top:6px;background:var(--surface2);border-radius:6px;padding:6px 8px;font-family:ui-monospace,monospace;white-space:pre-wrap;max-height:180px;overflow:auto;">{{ last_scan.output_tail | join('\n') }}</div>
+          {% endif %}
+        </details>
+        {% endif %}
         {% if last_scan.infected %}
         <div class="infected-list">
           {% for item in last_scan.infected %}

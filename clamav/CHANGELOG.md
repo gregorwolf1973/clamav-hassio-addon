@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.0.8 - 2026-05-20
+
+### Fixed
+- **Config changes now take effect on the next scan, no addon restart
+  needed.** Previously the scanner read `incremental_scan`,
+  `exclude_patterns`, `auto_quarantine`, `scan_archives`, `notify_ha`
+  and `max_file_size_mb` once at startup. Toggling any of them in the HA
+  UI had no effect until the addon was stopped and started again — a
+  silent footgun that caused virus files to be skipped after toggling
+  incremental off, and `exclude_patterns` entries to be ignored. The
+  scanner now re-reads `/data/options.json` at the start of every scan.
+  (`daemon_mode` and `scan_archives` in daemon mode still require a
+  restart because they affect `clamd.conf` written by run.sh.)
+- **Incremental scan: detect files uploaded with preserved old mtime.**
+  Files uploaded via HA file editor, SMB, `cp -p` or extracted from an
+  archive often keep the source's mtime. The previous mtime-only check
+  filtered such files out even though they had just appeared. The
+  scanner now uses `max(mtime, ctime)` so newly-arrived files are picked
+  up regardless of their stored mtime.
+
+### Added
+- Each scan result now records the exact `clamscan/clamdscan` command
+  that ran plus the last 30 lines of its output. A "Diagnostics"
+  section in the *Last Scan Details* card exposes them so unexpected
+  results can be debugged without spawning a shell inside the container.
+- Effective config is now printed to the addon log on every scan start.
+
 ## 1.0.7 - 2026-05-20
 
 ### Added

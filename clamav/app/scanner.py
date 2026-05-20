@@ -12,19 +12,65 @@ HISTORY_FILE      = f"{DATA_DIR}/history/scans.json"
 QUARANTINE_DIR    = f"{DATA_DIR}/quarantine"
 QUARANTINE_META   = f"{DATA_DIR}/quarantine_meta.json"
 INCREMENTAL_DIR   = f"{DATA_DIR}/incremental"
+OPTIONS_FILE      = f"{DATA_DIR}/options.json"
 MAX_HISTORY       = 50
-
-SCAN_PATHS        = json.loads(os.environ.get("SCAN_PATHS", '["/share","/media"]'))
-AUTO_QUARANTINE   = os.environ.get("AUTO_QUARANTINE", "true").lower() in ("true", "1")
-MAX_FILE_SIZE_MB  = int(os.environ.get("MAX_FILE_SIZE_MB", "100"))
-NOTIFY_HA         = os.environ.get("NOTIFY_HA", "true").lower() in ("true", "1")
-DAEMON_MODE       = os.environ.get("DAEMON_MODE", "always")
-SCAN_ARCHIVES     = os.environ.get("SCAN_ARCHIVES", "true").lower() in ("true", "1")
-INCREMENTAL_SCAN  = os.environ.get("INCREMENTAL_SCAN", "false").lower() in ("true", "1")
-EXCLUDE_PATTERNS  = json.loads(os.environ.get("EXCLUDE_PATTERNS", "[]"))
 DB_DIR            = "/data/clamav-db"
 
-SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
+SUPERVISOR_TOKEN  = os.environ.get("SUPERVISOR_TOKEN", "")
+
+
+def _load_config() -> dict:
+    """Read live HA addon options from /data/options.json.
+
+    Done at every scan so that toggling options in the HA UI takes effect
+    on the next scan without needing an addon restart. Falls back to env
+    vars (set by run.sh at startup) if options.json is missing.
+
+    NOTE: `daemon_mode` and `scan_archives` (in daemon mode) still require
+    a restart because they affect /etc/clamav/clamd.conf which is written
+    by run.sh at startup.
+    """
+    opts = {}
+    try:
+        with open(OPTIONS_FILE) as f:
+            opts = json.load(f)
+    except Exception:
+        pass
+
+    def _b(key, env_default):
+        if key in opts:
+            return bool(opts[key])
+        return os.environ.get(env_default, "false").lower() in ("true", "1")
+
+    def _i(key, env_default, fallback):
+        if key in opts:
+            try:
+                return int(opts[key])
+            except (TypeError, ValueError):
+                pass
+        try:
+            return int(os.environ.get(env_default, str(fallback)))
+        except ValueError:
+            return fallback
+
+    def _l(key, env_default):
+        if key in opts and isinstance(opts[key], list):
+            return [str(x) for x in opts[key]]
+        try:
+            return json.loads(os.environ.get(env_default, "[]"))
+        except Exception:
+            return []
+
+    return {
+        "scan_paths":       _l("scan_paths",      "SCAN_PATHS") or ["/share", "/media"],
+        "exclude_patterns": _l("exclude_patterns","EXCLUDE_PATTERNS"),
+        "auto_quarantine":  _b("auto_quarantine", "AUTO_QUARANTINE"),
+        "notify_ha":        _b("notify_ha",       "NOTIFY_HA"),
+        "scan_archives":    _b("scan_archives",   "SCAN_ARCHIVES"),
+        "incremental_scan": _b("incremental_scan","INCREMENTAL_SCAN"),
+        "max_file_size_mb": _i("max_file_size_mb","MAX_FILE_SIZE_MB", 100),
+        "daemon_mode":      opts.get("daemon_mode") or os.environ.get("DAEMON_MODE", "always"),
+    }
 
 _scan_running = False
 _scan_progress = {
@@ -37,8 +83,9 @@ _scan_progress = {
 }
 
 
-def _notify_ha(message: str, title: str = "ClamAV Antivirus"):
-    if not NOTIFY_HA or not SUPERVISOR_TOKEN:
+def _notify_ha(message: str, title: str = "ClamAV Antivirus", cfg: dict = None):
+    cfg = cfg or _load_config()
+    if not cfg["notify_ha"] or not SUPERVISOR_TOKEN:
         return
     try:
         import urllib.request
@@ -121,8 +168,15 @@ def _path_marker(path: str) -> str:
 
 
 def _find_changed_files(path: str, marker: str) -> list:
-    """Return list of files under `path` modified after the marker's mtime.
-    On first run (no marker), return None to indicate full scan needed."""
+    """Return list of files under `path` that appeared or changed after the
+    marker's mtime. On first run (no marker), return None to signal that a
+    full scan is needed.
+
+    Uses max(mtime, ctime) so that files uploaded with a preserved old
+    mtime (e.g. via HA file editor, SMB, cp -p, or extracted from an
+    archive that kept timestamps) are still picked up — their ctime
+    reflects when they appeared on this filesystem.
+    """
     if not os.path.exists(marker):
         return None
     ref_time = os.path.getmtime(marker)
@@ -131,26 +185,27 @@ def _find_changed_files(path: str, marker: str) -> list:
         for f in files:
             fp = os.path.join(root, f)
             try:
-                if os.path.getmtime(fp) > ref_time:
+                st = os.stat(fp)
+                if max(st.st_mtime, st.st_ctime) > ref_time:
                     changed.append(fp)
             except OSError:
                 pass
     return changed
 
 
-def _build_scan_cmd(target, is_file_list: bool = False) -> list:
-    """Construct the clamscan/clamdscan command line based on current config."""
-    if DAEMON_MODE == "on_demand":
+def _build_scan_cmd(target, is_file_list: bool, cfg: dict) -> list:
+    """Construct the clamscan/clamdscan command line from live config."""
+    max_mb = cfg["max_file_size_mb"]
+    if cfg["daemon_mode"] == "on_demand":
         cmd = [
             "clamscan",
             "--no-summary",
             f"--database={DB_DIR}",
-            f"--max-filesize={MAX_FILE_SIZE_MB}M",
-            f"--max-scansize={MAX_FILE_SIZE_MB * 4}M",
+            f"--max-filesize={max_mb}M",
+            f"--max-scansize={max_mb * 4}M",
             "--stdout",
         ]
-        # Archive scanning toggle — clamscan accepts these per invocation
-        if not SCAN_ARCHIVES:
+        if not cfg["scan_archives"]:
             cmd += [
                 "--scan-archive=no",
                 "--scan-pdf=no",
@@ -163,22 +218,16 @@ def _build_scan_cmd(target, is_file_list: bool = False) -> list:
         else:
             cmd += ["--recursive", target]
     else:
-        cmd = [
-            "clamdscan",
-            "--multiscan",
-            "--fdpass",
-            "--no-summary",
-        ]
-        # clamdscan's archive behavior is controlled by clamd.conf
-        # (configured in run.sh at startup based on scan_archives option).
+        cmd = ["clamdscan", "--multiscan", "--fdpass", "--no-summary"]
+        # clamdscan's archive behavior is controlled by clamd.conf, written
+        # by run.sh at startup. Changing scan_archives requires a restart
+        # in daemon mode.
         if is_file_list:
             cmd += [f"--file-list={target}"]
         else:
             cmd += [target]
 
-    # Exclude patterns: clamscan/clamdscan use regex on the full path.
-    # --exclude matches files, --exclude-dir matches whole subtrees.
-    for pat in EXCLUDE_PATTERNS:
+    for pat in cfg["exclude_patterns"]:
         cmd.append(f"--exclude={pat}")
         cmd.append(f"--exclude-dir={pat}")
 
@@ -191,10 +240,21 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
     if _scan_running:
         return {"error": "Scan already running"}
 
+    cfg = _load_config()
+    print(
+        f"[scanner] cfg: incremental={cfg['incremental_scan']} "
+        f"archives={cfg['scan_archives']} "
+        f"quarantine={cfg['auto_quarantine']} "
+        f"exclude={cfg['exclude_patterns']}",
+        flush=True,
+    )
+
     _scan_running = True
-    scan_paths = paths or SCAN_PATHS
+    scan_paths = paths or cfg["scan_paths"]
     start_time = time.time()
     started_at = datetime.now().isoformat()
+    last_cmd = []
+    output_tail = []  # last ~30 lines of clamscan output for diagnostics
 
     _scan_progress = {
         "status": "running",
@@ -228,7 +288,7 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
             target = path
 
             # ── Incremental scan: find only changed files ─────────────
-            if INCREMENTAL_SCAN:
+            if cfg["incremental_scan"]:
                 _scan_progress["phase"] = "discovering"
                 marker = _path_marker(path)
                 changed = _find_changed_files(path, marker)
@@ -254,7 +314,9 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
                     target = file_list_path
 
             _scan_progress["phase"] = "scanning"
-            cmd = _build_scan_cmd(target, is_file_list=(file_list_path is not None))
+            cmd = _build_scan_cmd(target, is_file_list=(file_list_path is not None), cfg=cfg)
+            last_cmd = cmd
+            print(f"[scanner] run: {' '.join(cmd)}", flush=True)
 
             try:
                 # Stream output line by line so progress updates live.
@@ -271,6 +333,9 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
                     line = line.rstrip()
                     if not line:
                         continue
+                    output_tail.append(line)
+                    if len(output_tail) > 30:
+                        output_tail.pop(0)
                     if time.time() - start_path > 3600:
                         proc.kill()
                         errors.append(f"Scan timeout for path: {path}")
@@ -295,7 +360,7 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
                         _scan_progress["files_scanned"] = total_files
                         _scan_progress["current_file"] = fpath
                         entry = {"file": fpath, "virus": virus, "quarantined": None}
-                        if AUTO_QUARANTINE:
+                        if cfg["auto_quarantine"]:
                             dest = _quarantine_file(fpath, virus=virus)
                             entry["quarantined"] = dest
                             quarantined.append(dest)
@@ -318,7 +383,7 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
                         pass
 
             # Update incremental marker on successful scan of this path
-            if INCREMENTAL_SCAN:
+            if cfg["incremental_scan"]:
                 try:
                     marker = _path_marker(path)
                     open(marker, "a").close()
@@ -358,8 +423,10 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
         "errors": errors,
         "incremental": incremental_used,
         "incremental_skipped_paths": incremental_skipped,
-        "scan_archives": SCAN_ARCHIVES,
-        "exclude_patterns": EXCLUDE_PATTERNS,
+        "scan_archives": cfg["scan_archives"],
+        "exclude_patterns": cfg["exclude_patterns"],
+        "scan_command": " ".join(last_cmd),
+        "output_tail": output_tail[-30:],
     }
 
     history = _load_history()
@@ -373,12 +440,14 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
             f"{len(infected_files)} infected file(s) found: {names}{suffix}. "
             + ("Files quarantined." if quarantined else "Manual action required."),
             title="ClamAV: Threat Detected!",
+            cfg=cfg,
         )
     else:
         if triggered_by == "scheduled":
             _notify_ha(
                 f"Scheduled scan completed: {total_files} files scanned, no threats found.",
                 title="ClamAV: Scan Clean",
+                cfg=cfg,
             )
 
     return scan_result

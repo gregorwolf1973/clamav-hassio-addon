@@ -82,6 +82,16 @@ exclude_patterns: []              # scan everything
 incremental_scan: true            # still useful — most files are unchanged
 ```
 
+### Options that take effect immediately vs. require restart
+
+Since v1.0.8 the scanner re-reads its options at the start of every scan,
+so toggling **incremental_scan**, **exclude_patterns**, **auto_quarantine**,
+**notify_ha** and **max_file_size_mb** in the HA UI applies on the next
+scan — no addon restart needed.
+
+**Still need an addon restart**: `daemon_mode` and `scan_archives` in
+daemon mode, because they're baked into `clamd.conf` at startup.
+
 ### Incremental scan caveat
 
 When `incremental_scan` is ON, a file that was already on disk during the
