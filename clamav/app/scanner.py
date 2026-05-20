@@ -19,6 +19,18 @@ DB_DIR            = "/data/clamav-db"
 SUPERVISOR_TOKEN  = os.environ.get("SUPERVISOR_TOKEN", "")
 
 
+def _normalize_pattern(pat: str) -> str:
+    """Collapse `\\\\` → `\\` and `\\.` → `\\.` (no-op for the dot case;
+    kept to make YAML-style examples also work when entered in the HA UI
+    form). The UI form takes input verbatim, so a user copying
+    `\\\\.jpg` from the YAML docs ends up with a literal double-backslash
+    pattern that never matches anything on Linux paths. Treat any
+    `\\\\` as `\\` so both forms work."""
+    if pat is None:
+        return ""
+    return pat.replace("\\\\", "\\")
+
+
 def _load_config() -> dict:
     """Read live HA addon options from /data/options.json.
 
@@ -61,9 +73,10 @@ def _load_config() -> dict:
         except Exception:
             return []
 
+    raw_excludes = _l("exclude_patterns", "EXCLUDE_PATTERNS")
     return {
         "scan_paths":       _l("scan_paths",      "SCAN_PATHS") or ["/share", "/media"],
-        "exclude_patterns": _l("exclude_patterns","EXCLUDE_PATTERNS"),
+        "exclude_patterns": [_normalize_pattern(p) for p in raw_excludes if p],
         "auto_quarantine":  _b("auto_quarantine", "AUTO_QUARANTINE"),
         "notify_ha":        _b("notify_ha",       "NOTIFY_HA"),
         "scan_archives":    _b("scan_archives",   "SCAN_ARCHIVES"),
@@ -281,6 +294,23 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
                 errors.append(f"Path not found: {path}")
                 continue
 
+            # Pre-flight file count so 0-files scans are unambiguous
+            pre_count = 0
+            try:
+                for _r, _d, _fs in os.walk(path):
+                    pre_count += len(_fs)
+                    if pre_count > 5000:
+                        break
+            except OSError:
+                pass
+            print(
+                f"[scanner] path={path} pre-scan file count: "
+                f"{'>5000' if pre_count > 5000 else pre_count}",
+                flush=True,
+            )
+            if pre_count == 0:
+                errors.append(f"{path}: directory is empty (nothing to scan)")
+
             _scan_progress["current_path"] = path
             _scan_progress["current_file"] = ""
 
@@ -318,15 +348,28 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
             last_cmd = cmd
             print(f"[scanner] run: {' '.join(cmd)}", flush=True)
 
+            stderr_buf = []
             try:
                 # Stream output line by line so progress updates live.
+                # stderr kept separate so silent failures (no stdout but
+                # an error on stderr) are visible in diagnostics.
                 proc = subprocess.Popen(
                     cmd,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
+                    stderr=subprocess.PIPE,
                     text=True,
                     bufsize=1,
                 )
+
+                # Drain stderr concurrently so the pipe doesn't fill.
+                import threading
+                def _drain_stderr():
+                    for ln in proc.stderr:
+                        ln = ln.rstrip()
+                        if ln:
+                            stderr_buf.append(ln)
+                t = threading.Thread(target=_drain_stderr, daemon=True)
+                t.start()
 
                 start_path = time.time()
                 for line in proc.stdout:
@@ -371,6 +414,17 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
                         errors.append(line[-200:])
 
                 proc.wait(timeout=60)
+                t.join(timeout=5)
+
+                # Surface stderr in diagnostics and exit-code in errors.
+                if stderr_buf:
+                    output_tail.extend(["[stderr]"] + stderr_buf[-15:])
+                    output_tail[:] = output_tail[-30:]
+                if proc.returncode not in (0, 1):  # 1 = virus found
+                    errors.append(
+                        f"{path}: clamscan exit code {proc.returncode}; "
+                        f"see diagnostics for stderr"
+                    )
 
             except Exception as e:
                 errors.append(f"Scan error for {path}: {e}")

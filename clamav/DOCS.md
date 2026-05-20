@@ -72,6 +72,14 @@ exclude_patterns:
   - "/cache/"                          # skip cache directories
 incremental_scan: true            # only scan new/changed files
 ```
+
+> **Note on regex syntax.** The YAML examples above use `\\.` because
+> YAML uses `\\` as the escape for a single `\`. **In the Home Assistant
+> UI form, type a single backslash instead — `\.mp4$` etc.** The form
+> takes the value verbatim, so `\\.mp4$` from the YAML examples would
+> become a regex looking for a literal backslash and not match anything.
+> Since v1.0.9 the scanner accepts both forms (it collapses `\\` to `\`)
+> so existing configs keep working.
 With these settings a daily scan of a 500 GB media library typically
 completes in seconds after the initial full scan.
 

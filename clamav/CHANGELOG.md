@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.0.9 - 2026-05-20
+
+### Fixed
+- **`exclude_patterns` entered in the HA UI form work as expected now.**
+  The DOCS examples use YAML syntax (`\\.jpg`) where `\\` escapes to a
+  single `\`. But the HA UI form takes the value verbatim, so users
+  copying the YAML examples ended up with a literal double-backslash
+  regex that never matched anything on Linux paths. The scanner now
+  collapses `\\` → `\` so both spellings work.
+
+### Added (diagnostics)
+- Pre-scan file count is printed to the addon log and recorded in
+  `errors` when 0 — distinguishes "directory empty" from "clamscan
+  crashed silently".
+- clamscan's stderr is captured separately from stdout and appended to
+  the diagnostics tail, so failures that previously stayed silent are
+  surfaced.
+- clamscan exit code is checked. Anything other than 0 (clean) or 1
+  (virus found) becomes an error in the scan result.
+
 ## 1.0.8 - 2026-05-20
 
 ### Fixed
