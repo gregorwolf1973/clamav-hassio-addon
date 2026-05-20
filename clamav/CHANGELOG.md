@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.7 - 2026-05-20
+
+### Added
+- **Addon icon and logo** — `icon.png` (128×128) and `logo.png` (250×100)
+  are now shipped with the addon so Home Assistant shows proper branding
+  in the addon store and side panel.
+- **"Buy me a coffee" button** in the web GUI header for donations.
+
+### Changed
+- Confirmed all user-facing text in the web GUI is English. The German
+  `de.yaml` translation file is preserved so Home Assistant continues to
+  show localized configuration labels for German users.
+
 ## 1.0.6 - 2026-05-20
 
 ### Added (speed optimizations for large libraries)

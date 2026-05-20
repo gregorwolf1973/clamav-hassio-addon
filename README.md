@@ -1,6 +1,11 @@
 # ClamAV Antivirus – Home Assistant Addon
 
+<p align="center">
+  <img src="clamav/logo.png" alt="ClamAV Antivirus" height="100">
+</p>
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/gregorwolf1973)
 
 ClamAV-based antivirus and antimalware scanner for Home Assistant with web GUI, scheduled scans, auto-quarantine and HA notifications.
 
@@ -28,3 +33,7 @@ Then install **ClamAV Antivirus** from the addon store.
 - `amd64`
 - `aarch64`
 - `armv7`
+
+## Support
+
+If you find this addon useful, you can [buy me a coffee](https://www.buymeacoffee.com/gregorwolf1973) ☕.
