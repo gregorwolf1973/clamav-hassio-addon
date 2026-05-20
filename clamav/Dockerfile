@@ -59,7 +59,6 @@ DatabaseMirror database.clamav.net
 MaxAttempts 3
 ScriptedUpdates yes
 CompressLocalDatabase no
-SafeBrowsing no
 Bytecode yes
 EOF
 

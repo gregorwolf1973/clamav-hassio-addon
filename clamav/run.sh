@@ -50,7 +50,10 @@ if ! freshclam --daemon=0; then
 fi
 
 # Ensure we have *some* DB before starting clamd, otherwise clamd refuses to start.
-if ! ls /data/clamav-db/*.cvd /data/clamav-db/*.cld >/dev/null 2>&1; then
+# Use find instead of `ls *.cvd *.cld` — when one of the globs has no matches
+# bash passes it literally and ls returns non-zero even if the other glob did match.
+DB_FILES=$(find /data/clamav-db -maxdepth 1 \( -name '*.cvd' -o -name '*.cld' \) 2>/dev/null | head -1)
+if [ -z "$DB_FILES" ]; then
     bashio::log.fatal "No virus database found and freshclam failed. Cannot start clamd."
     bashio::log.fatal "Check internet connectivity and restart the addon."
     exit 1

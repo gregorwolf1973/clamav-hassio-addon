@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.3 - 2026-05-20
+
+### Fixed
+- DB-existence check after freshclam wrongly reported "no database found"
+  on first start. The check used `ls *.cvd *.cld` — when one of the globs
+  has no matches (no .cld files on first install), bash passes the literal
+  pattern to ls which returns non-zero and aborts startup. Replaced with
+  `find`, which handles partial matches correctly.
+- Removed deprecated `SafeBrowsing` option from `freshclam.conf` (warning
+  spam in log).
+
 ## 1.0.2 - 2026-05-20
 
 ### Fixed
