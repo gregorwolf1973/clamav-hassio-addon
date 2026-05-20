@@ -304,13 +304,32 @@
       {% if quarantine %}
       <div class="table-wrap">
         <table>
-          <thead><tr><th>File</th><th>Size</th><th></th></tr></thead>
+          <thead><tr><th>File / Origin</th><th>Size</th><th>Actions</th></tr></thead>
           <tbody id="quarantine-tbody">
           {% for f in quarantine %}
           <tr id="qrow-{{ loop.index }}">
-            <td style="word-break:break-all;max-width:180px;" title="{{ f.path }}">{{ f.name }}</td>
+            <td style="word-break:break-all;max-width:220px;" title="{{ f.path }}">
+              <div>{{ f.name }}</div>
+              {% if f.original_path %}
+              <div style="font-size:.7rem;color:var(--text-dim);margin-top:2px;">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;"><path d="M9 17l-5-5 5-5"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+                {{ f.original_path }}
+              </div>
+              {% endif %}
+              {% if f.virus %}
+              <div style="font-size:.7rem;color:var(--danger);margin-top:2px;">{{ f.virus }}</div>
+              {% endif %}
+            </td>
             <td style="white-space:nowrap;color:var(--text-dim);">{{ (f.size / 1024) | round(1) }} KB</td>
-            <td><button class="btn btn-danger btn-sm" onclick="deleteQuarantine('{{ f.name }}', {{ loop.index }})">Delete</button></td>
+            <td style="white-space:nowrap;">
+              {% if f.restorable %}
+              <button class="btn btn-ghost btn-sm" onclick="restoreQuarantine('{{ f.name }}', {{ loop.index }})" title="Move back to original location">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.1"/></svg>
+                Restore
+              </button>
+              {% endif %}
+              <button class="btn btn-danger btn-sm" onclick="deleteQuarantine('{{ f.name }}', {{ loop.index }})">Delete</button>
+            </td>
           </tr>
           {% endfor %}
           </tbody>
@@ -459,6 +478,30 @@ function deleteQuarantine(filename, idx) {
         toast('Delete failed', 'bad');
       }
     });
+}
+
+function restoreQuarantine(filename, idx) {
+  if (!confirm(
+    `Restore "${filename}" to its original location?\n\n` +
+    `WARNING: This file was flagged as infected. Only restore if you ` +
+    `are sure it's a false positive.`
+  )) return;
+  fetch('api/quarantine/restore', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename }),
+  })
+    .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+    .then(({ ok, data }) => {
+      if (ok && data.success) {
+        const row = document.getElementById('qrow-' + idx);
+        if (row) row.remove();
+        toast(`Restored to ${data.restored_to}`, 'ok');
+      } else {
+        toast(data.error || 'Restore failed', 'bad');
+      }
+    })
+    .catch(() => toast('Restore request failed', 'bad'));
 }
 
 // ── History ──────────────────────────────────────────────────

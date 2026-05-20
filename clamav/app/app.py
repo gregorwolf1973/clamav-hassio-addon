@@ -143,6 +143,19 @@ def api_quarantine_delete():
     return jsonify({"deleted": ok})
 
 
+@app.route("/api/quarantine/restore", methods=["POST"])
+def api_quarantine_restore():
+    if _auth_required():
+        return jsonify({"error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    filename = data.get("filename", "")
+    if not filename:
+        return jsonify({"success": False, "error": "No filename"}), 400
+    result = scanner.restore_quarantine_file(filename)
+    status = 200 if result.get("success") else 409
+    return jsonify(result), status
+
+
 @app.route("/api/status")
 def api_status():
     import subprocess

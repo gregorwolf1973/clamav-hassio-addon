@@ -7,10 +7,11 @@ import subprocess
 import time
 from datetime import datetime
 
-DATA_DIR      = "/data"
-HISTORY_FILE  = f"{DATA_DIR}/history/scans.json"
-QUARANTINE_DIR = f"{DATA_DIR}/quarantine"
-MAX_HISTORY   = 50
+DATA_DIR        = "/data"
+HISTORY_FILE    = f"{DATA_DIR}/history/scans.json"
+QUARANTINE_DIR  = f"{DATA_DIR}/quarantine"
+QUARANTINE_META = f"{DATA_DIR}/quarantine_meta.json"
+MAX_HISTORY     = 50
 
 SCAN_PATHS       = json.loads(os.environ.get("SCAN_PATHS", '["/share","/media"]'))
 AUTO_QUARANTINE  = os.environ.get("AUTO_QUARANTINE", "true").lower() in ("true", "1")
@@ -59,14 +60,41 @@ def _save_history(history):
         json.dump(history[-MAX_HISTORY:], f, indent=2)
 
 
-def _quarantine_file(infected_path: str) -> str:
-    """Move infected file to quarantine dir, return new path."""
+def _load_quarantine_meta() -> dict:
+    """Load per-file quarantine metadata (original path, virus name, ts)."""
+    try:
+        with open(QUARANTINE_META) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_quarantine_meta(meta: dict):
+    try:
+        with open(QUARANTINE_META, "w") as f:
+            json.dump(meta, f, indent=2)
+    except Exception:
+        pass
+
+
+def _quarantine_file(infected_path: str, virus: str = "") -> str:
+    """Move infected file to quarantine dir, return new path. Tracks the
+    original location in quarantine_meta.json so the file can be restored
+    later (e.g. for false positives)."""
     os.makedirs(QUARANTINE_DIR, exist_ok=True)
     basename = os.path.basename(infected_path)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    dest = os.path.join(QUARANTINE_DIR, f"{ts}_{basename}")
+    qname = f"{ts}_{basename}"
+    dest = os.path.join(QUARANTINE_DIR, qname)
     try:
         shutil.move(infected_path, dest)
+        meta = _load_quarantine_meta()
+        meta[qname] = {
+            "original_path": infected_path,
+            "virus": virus,
+            "quarantined_at": datetime.now().isoformat(),
+        }
+        _save_quarantine_meta(meta)
         return dest
     except Exception as e:
         return f"QUARANTINE_FAILED: {e}"
@@ -160,7 +188,7 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
                         _scan_progress["files_scanned"] = total_files
                         entry = {"file": fpath, "virus": virus, "quarantined": None}
                         if AUTO_QUARANTINE:
-                            dest = _quarantine_file(fpath)
+                            dest = _quarantine_file(fpath, virus=virus)
                             entry["quarantined"] = dest
                             quarantined.append(dest)
                         infected_files.append(entry)
@@ -301,16 +329,23 @@ def get_signature_info() -> dict:
 def list_quarantine() -> list:
     if not os.path.isdir(QUARANTINE_DIR):
         return []
+    meta = _load_quarantine_meta()
     files = []
     for fname in sorted(os.listdir(QUARANTINE_DIR), reverse=True):
         fpath = os.path.join(QUARANTINE_DIR, fname)
+        if not os.path.isfile(fpath):
+            continue
         try:
             stat = os.stat(fpath)
+            entry_meta = meta.get(fname, {})
             files.append({
                 "name": fname,
                 "path": fpath,
                 "size": stat.st_size,
                 "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                "original_path": entry_meta.get("original_path"),
+                "virus": entry_meta.get("virus"),
+                "restorable": bool(entry_meta.get("original_path")),
             })
         except Exception:
             pass
@@ -322,5 +357,54 @@ def delete_quarantine_file(filename: str) -> bool:
     fpath = os.path.join(QUARANTINE_DIR, safe)
     if os.path.isfile(fpath):
         os.remove(fpath)
+        meta = _load_quarantine_meta()
+        if safe in meta:
+            del meta[safe]
+            _save_quarantine_meta(meta)
         return True
     return False
+
+
+def restore_quarantine_file(filename: str) -> dict:
+    """Move a quarantined file back to its original location.
+    Refuses to overwrite existing files or restore when the original
+    directory no longer exists. Returns {'success': bool, ...}."""
+    safe = os.path.basename(filename)
+    qpath = os.path.join(QUARANTINE_DIR, safe)
+
+    if not os.path.isfile(qpath):
+        return {"success": False, "error": "Quarantined file not found."}
+
+    meta = _load_quarantine_meta()
+    entry = meta.get(safe)
+    if not entry or not entry.get("original_path"):
+        return {
+            "success": False,
+            "error": (
+                "Original location unknown for this file (no metadata). "
+                "Restore manually from /data/quarantine if needed."
+            ),
+        }
+
+    original = entry["original_path"]
+
+    if os.path.exists(original):
+        return {
+            "success": False,
+            "error": f"A file already exists at the original location: {original}",
+        }
+
+    original_dir = os.path.dirname(original)
+    if not os.path.isdir(original_dir):
+        return {
+            "success": False,
+            "error": f"Original directory no longer exists: {original_dir}",
+        }
+
+    try:
+        shutil.move(qpath, original)
+        del meta[safe]
+        _save_quarantine_meta(meta)
+        return {"success": True, "restored_to": original}
+    except Exception as e:
+        return {"success": False, "error": f"Move failed: {e}"}

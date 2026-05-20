@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.5 - 2026-05-20
+
+### Added
+- **Restore button for quarantined files.** Each file's original path is now
+  tracked in `/data/quarantine_meta.json` when it's quarantined. The web GUI
+  shows the original location and a Restore button next to Delete. Useful
+  for false positives — the file is moved back to where it came from.
+- Quarantine table now shows the original path and detected virus name for
+  each file.
+
+### Safety guards on restore
+- Refuses to overwrite a file that has appeared at the original location.
+- Refuses to restore when the original directory no longer exists.
+- Warns the user before restore that the file was flagged as infected.
+
 ## 1.0.4 - 2026-05-20
 
 ### Added
