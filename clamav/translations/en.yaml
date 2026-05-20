@@ -1,0 +1,34 @@
+configuration:
+  scan_paths:
+    name: Scan Paths
+    description: List of paths to scan (e.g. /share, /media). Maps to Home Assistant share and media folders.
+  scan_schedule:
+    name: Scan Schedule
+    description: How often to run an automatic scan. Use 'disabled' to turn off automatic scans.
+  scan_hour:
+    name: Scan Hour
+    description: Hour of the day (0-23) at which the scheduled scan starts (for daily/weekly schedule).
+  auto_quarantine:
+    name: Auto-Quarantine Infected Files
+    description: Automatically move infected files to the quarantine folder inside /data/quarantine.
+  max_file_size_mb:
+    name: Max File Size (MB)
+    description: Maximum file size in megabytes to scan. Files larger than this are skipped.
+  notify_ha:
+    name: Notify Home Assistant
+    description: Send a persistent notification to Home Assistant when a scan completes or a threat is detected.
+  log_level:
+    name: Log Level
+    description: Verbosity of addon logs.
+  web_port:
+    name: Web GUI Port
+    description: Port for the web interface (default 8200).
+  admin_password_enabled:
+    name: Enable Admin Password Protection
+    description: Protects the web interface with a username and password.
+  admin_username:
+    name: Admin Username
+    description: Username for the web interface (default admin).
+  admin_password:
+    name: Admin Password
+    description: Password for the web interface. Only active when admin_password_enabled is true.

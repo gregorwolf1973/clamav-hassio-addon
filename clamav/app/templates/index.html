@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<base href="./">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClamAV Antivirus</title>
+<style>
+  :root, [data-theme="light"] {
+    --primary: #03a9f4;
+    --primary-text: #fff;
+    --bg: #f5f6fa;
+    --surface: #ffffff;
+    --surface2: #f0f2f5;
+    --border: #e1e5eb;
+    --text: #1c1c1c;
+    --text-dim: #6e7681;
+    --text-bright: #1c1c1c;
+    --danger: #db4437;
+    --warn: #f4b400;
+    --success: #0f9d58;
+    --shadow: 0 1px 3px rgba(0,0,0,.08);
+    --radius: 12px;
+    --gutter: 16px;
+    --header-bg: #ffffff;
+    --input-bg: #f5f6fa;
+    --overlay: rgba(0,0,0,.4);
+    --pill-ok-bg: #e6f7ef; --pill-ok-text: #0f9d58;
+    --pill-warn-bg: #fff8e1; --pill-warn-text: #f57f17;
+    --pill-off-bg: #fde7e6; --pill-off-text: #db4437;
+  }
+  [data-theme="dark"] {
+    --primary: #4fc3f7;
+    --primary-text: #0a0a0a;
+    --bg: #111318;
+    --surface: #1c1f27;
+    --surface2: #252830;
+    --border: #333842;
+    --text: #c8cdd5;
+    --text-dim: #6b7280;
+    --text-bright: #edf0f5;
+    --danger: #f44336;
+    --warn: #ffb74d;
+    --success: #66bb6a;
+    --shadow: 0 1px 4px rgba(0,0,0,.3);
+    --header-bg: #1c1f27;
+    --input-bg: #111318;
+    --overlay: rgba(0,0,0,.65);
+    --pill-ok-bg: rgba(102,187,106,.12); --pill-ok-text: #66bb6a;
+    --pill-warn-bg: rgba(255,183,77,.1); --pill-warn-text: #ffb74d;
+    --pill-off-bg: rgba(244,67,54,.12); --pill-off-text: #f44336;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 14px; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; min-height: 100vh; }
+
+  /* Header */
+  .header { background: var(--header-bg); border-bottom: 1px solid var(--border); padding: 0 var(--gutter); display: flex; align-items: center; justify-content: space-between; height: 56px; position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow); }
+  .header-title { display: flex; align-items: center; gap: 10px; font-size: 1.1rem; font-weight: 600; color: var(--text-bright); }
+  .header-title svg { color: var(--primary); }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: .875rem; font-weight: 500; transition: opacity .15s, transform .1s; text-decoration: none; }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { background: var(--primary); color: var(--primary-text); }
+  .btn-danger  { background: var(--danger);  color: #fff; }
+  .btn-ghost   { background: transparent; color: var(--primary); border: 1px solid var(--border); }
+  .btn-sm      { padding: 5px 11px; font-size: .8rem; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* Layout */
+  .container { max-width: 960px; margin: 0 auto; padding: var(--gutter); }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gutter); }
+  @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--gutter); box-shadow: var(--shadow); }
+  .card-title { font-size: .95rem; font-weight: 600; color: var(--text-bright); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .card-title svg { color: var(--primary); flex-shrink: 0; }
+
+  /* Status pills */
+  .pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: .75rem; font-weight: 600; }
+  .pill-ok   { background: var(--pill-ok-bg);   color: var(--pill-ok-text); }
+  .pill-warn { background: var(--pill-warn-bg); color: var(--pill-warn-text); }
+  .pill-bad  { background: var(--pill-off-bg);  color: var(--pill-off-text); }
+
+  /* KPI row */
+  .kpi-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: var(--gutter); }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; flex: 1; min-width: 120px; box-shadow: var(--shadow); }
+  .kpi-label { font-size: .75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+  .kpi-value { font-size: 1.6rem; font-weight: 700; color: var(--text-bright); }
+  .kpi-value.ok   { color: var(--success); }
+  .kpi-value.warn { color: var(--warn); }
+  .kpi-value.bad  { color: var(--danger); }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th { text-align: left; padding: 8px 10px; color: var(--text-dim); font-weight: 600; border-bottom: 1px solid var(--border); font-size: .75rem; text-transform: uppercase; }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+
+  /* Progress bar */
+  .progress-wrap { display: none; margin: 12px 0; }
+  .progress-wrap.visible { display: block; }
+  .progress-bar-bg { background: var(--surface2); border-radius: 8px; height: 8px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; background: var(--primary); border-radius: 8px; transition: width .3s; width: 0%; }
+  .progress-label { font-size: .8rem; color: var(--text-dim); margin-top: 4px; }
+
+  /* Section spacing */
+  .section { margin-bottom: 24px; }
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .section-title { font-size: 1rem; font-weight: 600; color: var(--text-bright); }
+
+  /* Toasts */
+  #toast { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+  .toast-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; box-shadow: 0 4px 16px rgba(0,0,0,.15); font-size: .875rem; max-width: 340px; display: flex; align-items: flex-start; gap: 10px; animation: slideIn .2s ease; }
+  .toast-item.ok   { border-left: 4px solid var(--success); }
+  .toast-item.warn { border-left: 4px solid var(--warn); }
+  .toast-item.bad  { border-left: 4px solid var(--danger); }
+  @keyframes slideIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+
+  /* Theme toggle */
+  .theme-btn { background: none; border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; cursor: pointer; color: var(--text-dim); display: flex; align-items: center; }
+
+  /* Infected file list */
+  .infected-list { margin-top: 8px; }
+  .infected-item { background: var(--pill-off-bg); border: 1px solid rgba(219,68,55,.2); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; font-size: .8rem; }
+  .infected-item .virus-name { color: var(--danger); font-weight: 600; }
+  .infected-item .file-path { color: var(--text-dim); word-break: break-all; }
+
+  /* Scan path chips */
+  .path-chip { display: inline-flex; align-items: center; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; font-size: .8rem; color: var(--text-dim); margin: 2px; }
+
+  /* Empty state */
+  .empty { text-align: center; color: var(--text-dim); padding: 32px 16px; font-size: .9rem; }
+
+  /* Scan button spinning animation */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinning { animation: spin 1s linear infinite; display: inline-block; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+    ClamAV Antivirus
+  </div>
+  <div class="header-actions">
+    <button class="theme-btn" onclick="toggleTheme()" title="Toggle theme">
+      <svg id="theme-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    </button>
+    {% if config.get('admin_password_enabled') %}<a href="/logout" class="btn btn-ghost btn-sm">Logout</a>{% endif %}
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- KPI row -->
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-label">Last Scan</div>
+      {% if last_scan %}
+        <div class="kpi-value {% if last_scan.status == 'clean' %}ok{% elif last_scan.status == 'infected' %}bad{% else %}warn{% endif %}">
+          {{ last_scan.status | upper }}
+        </div>
+        <div style="font-size:.75rem;color:var(--text-dim);margin-top:4px;">{{ last_scan.started_at[:16] | replace('T',' ') }}</div>
+      {% else %}
+        <div class="kpi-value" style="color:var(--text-dim)">Never</div>
+      {% endif %}
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Files Scanned</div>
+      <div class="kpi-value">{{ last_scan.files_scanned if last_scan else '—' }}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Threats Found</div>
+      <div class="kpi-value {% if last_scan and last_scan.infected_count > 0 %}bad{% else %}ok{% endif %}">
+        {{ last_scan.infected_count if last_scan else '—' }}
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Quarantine</div>
+      <div class="kpi-value {% if quarantine %}warn{% else %}ok{% endif %}">{{ quarantine | length }}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Schedule</div>
+      <div class="kpi-value" style="font-size:1rem;padding-top:4px;">{{ schedule | capitalize }}</div>
+      {% if schedule != 'disabled' %}<div style="font-size:.75rem;color:var(--text-dim);margin-top:4px;">{{ scan_hour }}:00 h</div>{% endif %}
+    </div>
+  </div>
+
+  <!-- Scan control -->
+  <div class="section card">
+    <div class="card-title">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      Manual Scan
+    </div>
+
+    <div style="margin-bottom:10px;">
+      <div style="font-size:.8rem;color:var(--text-dim);margin-bottom:6px;">Scan paths:</div>
+      {% for p in scan_paths %}<span class="path-chip">{{ p }}</span>{% endfor %}
+    </div>
+
+    <div id="progress-wrap" class="progress-wrap">
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
+      <div class="progress-label" id="progress-label">Scanning…</div>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+      <button class="btn btn-primary" id="btn-scan" onclick="startScan()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="scan-icon"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Start Scan
+      </button>
+      <button class="btn btn-ghost" onclick="updateSignatures()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.1"/></svg>
+        Update Signatures
+      </button>
+    </div>
+
+    {% if sig_info %}
+    <div style="margin-top:12px;font-size:.78rem;color:var(--text-dim);">
+      Signature DB:
+      {% for k, v in sig_info.items() %}{{ k }}: <strong>{{ v }}</strong>{% if not loop.last %} &nbsp;·&nbsp; {% endif %}{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="grid-2">
+
+    <!-- Last scan details -->
+    <div class="section card">
+      <div class="card-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Last Scan Details
+      </div>
+      {% if last_scan %}
+        <table>
+          <tr><td style="color:var(--text-dim)">Status</td><td>
+            {% if last_scan.status == 'clean' %}<span class="pill pill-ok">Clean</span>
+            {% elif last_scan.status == 'infected' %}<span class="pill pill-bad">Infected</span>
+            {% else %}<span class="pill pill-warn">{{ last_scan.status }}</span>{% endif %}
+          </td></tr>
+          <tr><td style="color:var(--text-dim)">Started</td><td>{{ last_scan.started_at[:19] | replace('T',' ') }}</td></tr>
+          <tr><td style="color:var(--text-dim)">Duration</td><td>{{ last_scan.duration_s }}s</td></tr>
+          <tr><td style="color:var(--text-dim)">Files</td><td>{{ last_scan.files_scanned }}</td></tr>
+          <tr><td style="color:var(--text-dim)">Triggered by</td><td>{{ last_scan.triggered_by }}</td></tr>
+          {% if last_scan.errors %}
+          <tr><td style="color:var(--text-dim)">Errors</td><td style="color:var(--warn)">{{ last_scan.errors | join(', ') }}</td></tr>
+          {% endif %}
+        </table>
+        {% if last_scan.infected %}
+        <div class="infected-list">
+          {% for item in last_scan.infected %}
+          <div class="infected-item">
+            <div class="virus-name">{{ item.virus }}</div>
+            <div class="file-path">{{ item.file }}</div>
+            {% if item.quarantined %}<div style="font-size:.75rem;color:var(--text-dim);margin-top:3px;">Quarantined → {{ item.quarantined }}</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      {% else %}
+        <div class="empty">No scans yet. Start a manual scan above.</div>
+      {% endif %}
+    </div>
+
+    <!-- Quarantine -->
+    <div class="section card">
+      <div class="card-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Quarantine
+        {% if quarantine %}<span class="pill pill-warn" style="margin-left:auto;">{{ quarantine | length }}</span>{% endif %}
+      </div>
+      {% if quarantine %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>File</th><th>Size</th><th></th></tr></thead>
+          <tbody id="quarantine-tbody">
+          {% for f in quarantine %}
+          <tr id="qrow-{{ loop.index }}">
+            <td style="word-break:break-all;max-width:180px;" title="{{ f.path }}">{{ f.name }}</td>
+            <td style="white-space:nowrap;color:var(--text-dim);">{{ (f.size / 1024) | round(1) }} KB</td>
+            <td><button class="btn btn-danger btn-sm" onclick="deleteQuarantine('{{ f.name }}', {{ loop.index }})">Delete</button></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <div class="empty">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 8px;display:block;color:var(--success)"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+          Quarantine is empty
+        </div>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- Scan History -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">Scan History</div>
+      <button class="btn btn-ghost btn-sm" onclick="clearHistory()">Clear</button>
+    </div>
+    <div class="card">
+      {% if history %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Status</th><th>Files</th><th>Threats</th><th>Duration</th><th>Triggered</th></tr></thead>
+          <tbody id="history-tbody">
+          {% for s in history %}
+          <tr>
+            <td style="white-space:nowrap;">{{ s.started_at[:16] | replace('T',' ') }}</td>
+            <td>
+              {% if s.status == 'clean' %}<span class="pill pill-ok">Clean</span>
+              {% elif s.status == 'infected' %}<span class="pill pill-bad">Infected</span>
+              {% else %}<span class="pill pill-warn">{{ s.status }}</span>{% endif %}
+            </td>
+            <td>{{ s.files_scanned }}</td>
+            <td>{% if s.infected_count > 0 %}<strong style="color:var(--danger)">{{ s.infected_count }}</strong>{% else %}0{% endif %}</td>
+            <td>{{ s.duration_s }}s</td>
+            <td style="color:var(--text-dim)">{{ s.triggered_by }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <div class="empty">No scan history yet.</div>
+      {% endif %}
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<div id="toast"></div>
+
+<script>
+// ── Theme ────────────────────────────────────────────────────
+const stored = localStorage.getItem('theme') ||
+  (window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light');
+document.documentElement.setAttribute('data-theme', stored);
+
+function toggleTheme() {
+  const t = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('theme', t);
+}
+
+// ── Toast ────────────────────────────────────────────────────
+function toast(msg, type = 'ok') {
+  const el = document.createElement('div');
+  el.className = `toast-item ${type}`;
+  el.textContent = msg;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+// ── Scan ─────────────────────────────────────────────────────
+let pollTimer = null;
+
+function startScan() {
+  const btn = document.getElementById('btn-scan');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinning">⟳</span> Scanning…';
+
+  fetch('api/scan/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) { toast(d.error, 'bad'); resetScanBtn(); return; }
+      toast('Scan started', 'ok');
+      showProgress(true);
+      pollTimer = setInterval(pollProgress, 2000);
+    })
+    .catch(() => { toast('Failed to start scan', 'bad'); resetScanBtn(); });
+}
+
+function pollProgress() {
+  fetch('api/scan/progress')
+    .then(r => r.json())
+    .then(d => {
+      if (!d.running) {
+        clearInterval(pollTimer);
+        resetScanBtn();
+        showProgress(false);
+        toast('Scan complete — refreshing…', 'ok');
+        setTimeout(() => location.reload(), 1500);
+        return;
+      }
+      document.getElementById('progress-label').textContent =
+        `Scanning: ${d.current_path || '…'} (${d.files_scanned} files)`;
+    });
+}
+
+function showProgress(show) {
+  document.getElementById('progress-wrap').classList.toggle('visible', show);
+}
+
+function resetScanBtn() {
+  const btn = document.getElementById('btn-scan');
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start Scan';
+}
+
+// ── Signatures ───────────────────────────────────────────────
+function updateSignatures() {
+  toast('Updating ClamAV signatures…', 'ok');
+  fetch('api/signatures/update', { method: 'POST' })
+    .then(r => r.json())
+    .then(() => toast('Signature update started (check logs)', 'ok'))
+    .catch(() => toast('Update request failed', 'bad'));
+}
+
+// ── Quarantine ───────────────────────────────────────────────
+function deleteQuarantine(filename, idx) {
+  if (!confirm(`Delete "${filename}" permanently?`)) return;
+  fetch('api/quarantine/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename }),
+  })
+    .then(r => r.json())
+    .then(d => {
+      if (d.deleted) {
+        const row = document.getElementById('qrow-' + idx);
+        if (row) row.remove();
+        toast('File deleted', 'ok');
+      } else {
+        toast('Delete failed', 'bad');
+      }
+    });
+}
+
+// ── History ──────────────────────────────────────────────────
+function clearHistory() {
+  if (!confirm('Clear all scan history?')) return;
+  fetch('api/history/clear', { method: 'POST' })
+    .then(() => { toast('History cleared', 'ok'); setTimeout(() => location.reload(), 800); });
+}
+
+// Auto-resume polling if scan already running
+fetch('api/scan/progress')
+  .then(r => r.json())
+  .then(d => {
+    if (d.running) {
+      document.getElementById('btn-scan').disabled = true;
+      document.getElementById('btn-scan').innerHTML = '<span class="spinning">⟳</span> Scanning…';
+      showProgress(true);
+      pollTimer = setInterval(pollProgress, 2000);
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+configuration:
+  scan_paths:
+    name: Scan-Pfade
+    description: Liste der zu scannenden Verzeichnisse (z.B. /share, /media). Entspricht den HA-Freigaben.
+  scan_schedule:
+    name: Scan-Zeitplan
+    description: Wie oft ein automatischer Scan durchgeführt wird. 'disabled' deaktiviert automatische Scans.
+  scan_hour:
+    name: Scan-Uhrzeit
+    description: Stunde (0–23), zu der der geplante Scan startet (für täglich/wöchentlich).
+  auto_quarantine:
+    name: Infizierte Dateien automatisch quarantänisieren
+    description: Infizierte Dateien werden automatisch in /data/quarantine verschoben.
+  max_file_size_mb:
+    name: Maximale Dateigröße (MB)
+    description: Dateien größer als dieser Wert werden beim Scan übersprungen.
+  notify_ha:
+    name: Home Assistant benachrichtigen
+    description: Sendet eine persistente HA-Benachrichtigung wenn ein Scan abgeschlossen ist oder eine Bedrohung gefunden wurde.
+  log_level:
+    name: Log-Level
+    description: Detailgrad der Addon-Protokollierung.
+  web_port:
+    name: Web-GUI-Port
+    description: Port für die Weboberfläche (Standard 8200).
+  admin_password_enabled:
+    name: Passwortschutz aktivieren
+    description: Schützt die Weboberfläche mit Benutzername und Passwort.
+  admin_username:
+    name: Admin-Benutzername
+    description: Benutzername für die Weboberfläche (Standard admin).
+  admin_password:
+    name: Admin-Passwort
+    description: Passwort für die Weboberfläche. Nur aktiv wenn admin_password_enabled aktiviert ist.

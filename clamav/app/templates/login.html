@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClamAV – Login</title>
+<style>
+  :root { --primary:#03a9f4; --bg:#f5f6fa; --surface:#fff; --border:#e1e5eb; --text:#1c1c1c; --text-dim:#6e7681; --danger:#db4437; --radius:12px; }
+  @media (prefers-color-scheme:dark) {
+    :root { --bg:#111318; --surface:#1c1f27; --border:#333842; --text:#c8cdd5; --text-dim:#6b7280; }
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px 28px; width: 100%; max-width: 360px; box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+  .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; font-size: 1.1rem; font-weight: 700; color: var(--text); }
+  .logo svg { color: var(--primary); }
+  label { display: block; font-size: .8rem; font-weight: 600; color: var(--text-dim); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .04em; }
+  input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: .9rem; margin-bottom: 14px; }
+  input:focus { outline: 2px solid var(--primary); border-color: transparent; }
+  .btn { width: 100%; padding: 10px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: .95rem; font-weight: 600; cursor: pointer; }
+  .error { color: var(--danger); font-size: .85rem; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+    ClamAV Antivirus
+  </div>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post">
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" autocomplete="username" autofocus>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password">
+    <button class="btn" type="submit">Login</button>
+  </form>
+</div>
+</body>
+</html>
