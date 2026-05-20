@@ -97,31 +97,47 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
 
             _scan_progress["current_path"] = path
 
+            # Use clamdscan (talks to running clamd daemon) for speed.
+            # --fdpass allows clamd to read files via passed fd (avoids
+            # permission issues since clamd already runs as root).
+            # --multiscan scans files in parallel.
+            # --stream is a fallback if --fdpass fails.
             cmd = [
-                "clamscan",
-                "--recursive",
+                "clamdscan",
+                "--multiscan",
+                "--fdpass",
                 "--no-summary",
-                f"--max-filesize={MAX_FILE_SIZE_MB}M",
-                f"--max-scansize={MAX_FILE_SIZE_MB * 4}M",
-                "--stdout",
                 path,
             ]
 
             try:
-                result = subprocess.run(
+                # Stream output line by line so progress updates in real time.
+                # subprocess.run() with capture_output buffers everything until
+                # the process exits, which means no live progress.
+                proc = subprocess.Popen(
                     cmd,
-                    capture_output=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
                     text=True,
-                    timeout=3600,
+                    bufsize=1,  # line-buffered
                 )
-                output = result.stdout + result.stderr
 
-                for line in output.splitlines():
-                    # Count scanned files
+                start_path = time.time()
+                for line in proc.stdout:
+                    line = line.rstrip()
+                    if not line:
+                        continue
+                    # Abort if scan runs longer than 1 hour
+                    if time.time() - start_path > 3600:
+                        proc.kill()
+                        errors.append(f"Scan timeout for path: {path}")
+                        break
+
                     if line.endswith(": OK"):
                         total_files += 1
                         _scan_progress["files_scanned"] = total_files
-                    # Detect infected files: "path: VirusName FOUND"
+                        continue
+
                     m = re.match(r"^(.+): (.+) FOUND$", line)
                     if m:
                         fpath, virus = m.group(1), m.group(2)
@@ -133,9 +149,13 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
                             entry["quarantined"] = dest
                             quarantined.append(dest)
                         infected_files.append(entry)
+                        continue
 
-            except subprocess.TimeoutExpired:
-                errors.append(f"Scan timeout for path: {path}")
+                    if "ERROR" in line:
+                        errors.append(line[-200:])
+
+                proc.wait(timeout=60)
+
             except Exception as e:
                 errors.append(f"Scan error for {path}: {e}")
 
@@ -203,32 +223,64 @@ def update_signatures() -> dict:
         return {"success": False, "output": str(e)}
 
 
-def get_signature_info() -> dict:
+def _sigtool_info(db_path: str) -> dict:
+    """Run `sigtool --info` on a single DB file and return parsed fields."""
     try:
         result = subprocess.run(
-            ["sigtool", "--info", "/var/lib/clamav/main.cvd"],
+            ["sigtool", "--info", db_path],
             capture_output=True, text=True, timeout=10,
         )
-        lines = result.stdout.splitlines()
         info = {}
-        for line in lines:
+        for line in result.stdout.splitlines():
             if ":" in line:
                 k, _, v = line.partition(":")
-                info[k.strip()] = v.strip()
+                k, v = k.strip(), v.strip()
+                # Skip the very long digital signature blob
+                if k.lower().startswith("digital signature"):
+                    continue
+                info[k] = v
         return info
     except Exception:
-        pass
-    # fallback: check mtime of db files
+        return {}
+
+
+def get_signature_info() -> dict:
+    """
+    Return signature info for main, daily and bytecode databases.
+    Each DB exists either as .cvd (signed, full) or .cld (incremental updates).
+    Format: {"main": {...}, "daily": {...}, "bytecode": {...}, "last_update": "..."}
+    """
     db_dir = "/var/lib/clamav"
+    result = {}
+
+    for db_name in ("main", "daily", "bytecode"):
+        # Prefer .cld (incremental, newer) over .cvd
+        for ext in (".cld", ".cvd"):
+            path = os.path.join(db_dir, db_name + ext)
+            if os.path.exists(path):
+                info = _sigtool_info(path)
+                if info:
+                    info["_file"] = db_name + ext
+                    info["_mtime"] = datetime.fromtimestamp(
+                        os.path.getmtime(path)
+                    ).strftime("%Y-%m-%d %H:%M")
+                    result[db_name] = info
+                break
+
+    # Newest mtime across all DB files = effective "last freshclam update"
     try:
-        files = [f for f in os.listdir(db_dir) if f.endswith((".cvd", ".cld"))]
-        if files:
-            newest = max(files, key=lambda f: os.path.getmtime(os.path.join(db_dir, f)))
-            mtime = os.path.getmtime(os.path.join(db_dir, newest))
-            return {"Build date": datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")}
+        mtimes = []
+        for f in os.listdir(db_dir):
+            if f.endswith((".cvd", ".cld")):
+                mtimes.append(os.path.getmtime(os.path.join(db_dir, f)))
+        if mtimes:
+            result["last_update"] = datetime.fromtimestamp(
+                max(mtimes)
+            ).strftime("%Y-%m-%d %H:%M")
     except Exception:
         pass
-    return {}
+
+    return result
 
 
 def list_quarantine() -> list:

@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.1 - 2026-05-20
+
+### Fixed
+- Live scan progress now updates in real time (was stuck at 0 because
+  subprocess output was buffered until process completion)
+- Switched scan engine from `clamscan` to `clamdscan` — uses the running
+  ClamAV daemon instead of reloading the ~1 GB signature database for
+  every scan. Scans are 10–50× faster and use far less RAM.
+
+### Added
+- Signature info now shows all three databases (main, daily, bytecode)
+  with version, signature count and build time, plus the last freshclam
+  update timestamp
+
 ## 1.0.0 - 2026-05-20
 
 ### Added

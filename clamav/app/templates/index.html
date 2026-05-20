@@ -223,9 +223,34 @@
     </div>
 
     {% if sig_info %}
-    <div style="margin-top:12px;font-size:.78rem;color:var(--text-dim);">
-      Signature DB:
-      {% for k, v in sig_info.items() %}{{ k }}: <strong>{{ v }}</strong>{% if not loop.last %} &nbsp;·&nbsp; {% endif %}{% endfor %}
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+      <div style="font-size:.8rem;font-weight:600;color:var(--text-bright);margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+        Signature Databases
+        {% if sig_info.last_update %}
+        <span style="font-weight:400;color:var(--text-dim);">· last update: {{ sig_info.last_update }}</span>
+        {% endif %}
+      </div>
+      <table style="font-size:.78rem;">
+        <thead><tr>
+          <th>DB</th><th>File</th><th>Version</th><th>Signatures</th><th>Build</th>
+        </tr></thead>
+        <tbody>
+        {% for name in ['main', 'daily', 'bytecode'] %}
+          {% set db = sig_info.get(name) %}
+          {% if db %}
+          <tr>
+            <td><strong>{{ name }}</strong></td>
+            <td style="color:var(--text-dim);">{{ db._file }}</td>
+            <td>{{ db.get('Version', '—') }}</td>
+            <td>{{ "{:,}".format(db.get('Signatures', '0') | int) if db.get('Signatures', '').isdigit() else (db.get('Signatures') or '—') }}</td>
+            <td style="color:var(--text-dim);">{{ db.get('Build time', db._mtime)[:16] }}</td>
+          </tr>
+          {% else %}
+          <tr><td><strong>{{ name }}</strong></td><td colspan="4" style="color:var(--warn);">not found</td></tr>
+          {% endif %}
+        {% endfor %}
+        </tbody>
+      </table>
     </div>
     {% endif %}
   </div>
