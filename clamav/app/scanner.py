@@ -250,7 +250,7 @@ def get_signature_info() -> dict:
     Each DB exists either as .cvd (signed, full) or .cld (incremental updates).
     Format: {"main": {...}, "daily": {...}, "bytecode": {...}, "last_update": "..."}
     """
-    db_dir = "/var/lib/clamav"
+    db_dir = "/data/clamav-db"
     result = {}
 
     for db_name in ("main", "daily", "bytecode"):

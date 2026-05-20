@@ -5,32 +5,15 @@ set -e
 bashio::log.info "Starting ClamAV Antivirus Addon..."
 
 # ── Read config ────────────────────────────────────────────────
-export WEB_PORT
-WEB_PORT=$(bashio::config 'web_port')
-
-export SCAN_SCHEDULE
-SCAN_SCHEDULE=$(bashio::config 'scan_schedule')
-
-export SCAN_HOUR
-SCAN_HOUR=$(bashio::config 'scan_hour')
-
-export AUTO_QUARANTINE
-AUTO_QUARANTINE=$(bashio::config 'auto_quarantine')
-
-export MAX_FILE_SIZE_MB
-MAX_FILE_SIZE_MB=$(bashio::config 'max_file_size_mb')
-
-export NOTIFY_HA
-NOTIFY_HA=$(bashio::config 'notify_ha')
-
-export ADMIN_PASSWORD_ENABLED
-ADMIN_PASSWORD_ENABLED=$(bashio::config 'admin_password_enabled')
-
-export ADMIN_USERNAME
-ADMIN_USERNAME=$(bashio::config 'admin_username')
-
-export ADMIN_PASSWORD
-ADMIN_PASSWORD=$(bashio::config 'admin_password')
+export WEB_PORT;               WEB_PORT=$(bashio::config 'web_port')
+export SCAN_SCHEDULE;          SCAN_SCHEDULE=$(bashio::config 'scan_schedule')
+export SCAN_HOUR;              SCAN_HOUR=$(bashio::config 'scan_hour')
+export AUTO_QUARANTINE;        AUTO_QUARANTINE=$(bashio::config 'auto_quarantine')
+export MAX_FILE_SIZE_MB;       MAX_FILE_SIZE_MB=$(bashio::config 'max_file_size_mb')
+export NOTIFY_HA;              NOTIFY_HA=$(bashio::config 'notify_ha')
+export ADMIN_PASSWORD_ENABLED; ADMIN_PASSWORD_ENABLED=$(bashio::config 'admin_password_enabled')
+export ADMIN_USERNAME;         ADMIN_USERNAME=$(bashio::config 'admin_username')
+export ADMIN_PASSWORD;         ADMIN_PASSWORD=$(bashio::config 'admin_password')
 
 # Build JSON array of scan paths from config
 export SCAN_PATHS
@@ -48,33 +31,59 @@ sed -i "s/^MaxFileSize .*/MaxFileSize ${MAX_BYTES}/" /etc/clamav/clamd.conf
 sed -i "s/^MaxScanSize .*/MaxScanSize $(( MAX_BYTES * 4 ))/" /etc/clamav/clamd.conf
 
 # ── Persistent data dirs ───────────────────────────────────────
-mkdir -p /data/quarantine /data/history
-
-# Initialize history file if missing
+# /var/run is tmpfs and is wiped on every restart, so recreate the socket dir.
+mkdir -p /var/run/clamav /var/log/clamav /data/quarantine /data/history /data/clamav-db
+chmod 755 /var/run/clamav /var/log/clamav /data/clamav-db
 [ -f /data/history/scans.json ] || echo '[]' > /data/history/scans.json
 
 # ── Update virus signatures ────────────────────────────────────
-bashio::log.info "Updating ClamAV virus signatures (freshclam)..."
-freshclam --daemon=0 --quiet || bashio::log.warning "freshclam update failed (no internet?)"
+# DB is persisted to /data/clamav-db (see clamd.conf DatabaseDirectory).
+# First start downloads ~300 MB; subsequent starts only fetch diffs.
+if [ ! -f /data/clamav-db/main.cvd ] && [ ! -f /data/clamav-db/main.cld ]; then
+    bashio::log.info "First start — downloading full ClamAV signature DB (~300 MB)..."
+else
+    bashio::log.info "Updating ClamAV virus signatures (freshclam)..."
+fi
+
+if ! freshclam --daemon=0; then
+    bashio::log.warning "freshclam update failed (no internet?). Will use existing DB if present."
+fi
+
+# Ensure we have *some* DB before starting clamd, otherwise clamd refuses to start.
+if ! ls /data/clamav-db/*.cvd /data/clamav-db/*.cld >/dev/null 2>&1; then
+    bashio::log.fatal "No virus database found and freshclam failed. Cannot start clamd."
+    bashio::log.fatal "Check internet connectivity and restart the addon."
+    exit 1
+fi
 
 # ── Start clamd daemon ─────────────────────────────────────────
-bashio::log.info "Starting clamd daemon..."
-mkdir -p /var/run/clamav /var/log/clamav
+bashio::log.info "Starting clamd daemon (loading signature DB, this takes 30–60s)..."
 clamd &
 CLAMD_PID=$!
 
-# Wait for clamd socket to become ready (up to 60s)
-bashio::log.info "Waiting for clamd to become ready..."
+# Wait for clamd socket to become ready (up to 120s — DB load is slow)
 WAITED=0
-while [ ! -S /var/run/clamav/clamd.sock ] && [ $WAITED -lt 60 ]; do
+while [ ! -S /var/run/clamav/clamd.sock ] && [ $WAITED -lt 120 ]; do
+    # If clamd process died, fail fast and show its log
+    if ! kill -0 "$CLAMD_PID" 2>/dev/null; then
+        bashio::log.fatal "clamd process died during startup. Last lines from clamav.log:"
+        tail -n 30 /var/log/clamav/clamav.log 2>&1 || echo "(no log file)"
+        exit 1
+    fi
     sleep 2
     WAITED=$(( WAITED + 2 ))
+    if [ $(( WAITED % 20 )) -eq 0 ]; then
+        bashio::log.info "Still waiting for clamd... (${WAITED}s)"
+    fi
 done
 
 if [ ! -S /var/run/clamav/clamd.sock ]; then
-    bashio::log.warning "clamd socket not ready after 60s – TCP mode will be used"
+    bashio::log.fatal "clamd socket /var/run/clamav/clamd.sock did not appear within 120s."
+    bashio::log.fatal "Last lines from clamav.log:"
+    tail -n 30 /var/log/clamav/clamav.log 2>&1 || echo "(no log file)"
+    exit 1
 fi
-bashio::log.info "clamd ready"
+bashio::log.info "clamd ready after ${WAITED}s"
 
 # ── Start scheduled scan background daemon ────────────────────
 bashio::log.info "Schedule: ${SCAN_SCHEDULE} (hour ${SCAN_HOUR})"

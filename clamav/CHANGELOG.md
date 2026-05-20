@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.2 - 2026-05-20
+
+### Fixed
+- **clamd daemon now actually starts.** The Alpine default `clamd.conf` and
+  `freshclam.conf` ship with an `Example` line that prevents the daemon
+  from starting. Both configs are now written from scratch with sane
+  defaults — no more "Could not connect to clamd on LocalSocket" errors.
+- Startup waits up to 120s for clamd (DB load can take 60s+) and shows
+  the clamav log if the daemon dies, instead of silently continuing.
+- `/var/run` is tmpfs (wiped on restart) — socket directory is now
+  recreated in `run.sh` before clamd starts.
+
+### Added
+- Signature database is now persisted to `/data/clamav-db/` instead of
+  the ephemeral `/var/lib/clamav`. Subsequent restarts only fetch
+  incremental updates (~MB) instead of the full ~300 MB DB.
+- Startup aborts with a clear error if no virus DB is available
+  (instead of starting clamd into a broken state).
+
 ## 1.0.1 - 2026-05-20
 
 ### Fixed
