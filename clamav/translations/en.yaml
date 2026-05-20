@@ -8,6 +8,17 @@ configuration:
   scan_hour:
     name: Scan Hour
     description: Hour of the day (0-23) at which the scheduled scan starts (for daily/weekly schedule).
+  daemon_mode:
+    name: Daemon Mode (RAM vs. Speed Trade-off)
+    description: >-
+      'always' = ClamAV daemon stays running and keeps the ~1 GB signature
+      database permanently in RAM. Scans start instantly. Best when you have
+      enough RAM (>= 2 GB free) or run many scans.
+      'on_demand' = No daemon. Each scan loads the database fresh from disk
+      and releases the RAM afterwards. Idle RAM is ~50 MB instead of ~1 GB,
+      but every scan has 30-60 seconds extra startup time (depending on disk
+      speed; SD-card is slow, SSD is fast). Best for low-RAM hardware (e.g.
+      Raspberry Pi) when you only scan once a day.
   auto_quarantine:
     name: Auto-Quarantine Infected Files
     description: Automatically move infected files to the quarantine folder inside /data/quarantine.

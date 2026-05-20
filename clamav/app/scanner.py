@@ -16,6 +16,8 @@ SCAN_PATHS       = json.loads(os.environ.get("SCAN_PATHS", '["/share","/media"]'
 AUTO_QUARANTINE  = os.environ.get("AUTO_QUARANTINE", "true").lower() in ("true", "1")
 MAX_FILE_SIZE_MB = int(os.environ.get("MAX_FILE_SIZE_MB", "100"))
 NOTIFY_HA        = os.environ.get("NOTIFY_HA", "true").lower() in ("true", "1")
+DAEMON_MODE      = os.environ.get("DAEMON_MODE", "always")
+DB_DIR           = "/data/clamav-db"
 
 SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
 
@@ -97,18 +99,31 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
 
             _scan_progress["current_path"] = path
 
-            # Use clamdscan (talks to running clamd daemon) for speed.
-            # --fdpass allows clamd to read files via passed fd (avoids
-            # permission issues since clamd already runs as root).
-            # --multiscan scans files in parallel.
-            # --stream is a fallback if --fdpass fails.
-            cmd = [
-                "clamdscan",
-                "--multiscan",
-                "--fdpass",
-                "--no-summary",
-                path,
-            ]
+            if DAEMON_MODE == "on_demand":
+                # clamscan: standalone scanner. Loads DB from disk for this
+                # scan, releases the RAM when done. Slower startup but no
+                # permanent ~1 GB RAM footprint.
+                cmd = [
+                    "clamscan",
+                    "--recursive",
+                    "--no-summary",
+                    f"--database={DB_DIR}",
+                    f"--max-filesize={MAX_FILE_SIZE_MB}M",
+                    f"--max-scansize={MAX_FILE_SIZE_MB * 4}M",
+                    "--stdout",
+                    path,
+                ]
+            else:
+                # clamdscan: talks to the running clamd daemon. DB already in
+                # RAM, scans start instantly. --multiscan = parallel files,
+                # --fdpass = pass fd to clamd (avoids permission issues).
+                cmd = [
+                    "clamdscan",
+                    "--multiscan",
+                    "--fdpass",
+                    "--no-summary",
+                    path,
+                ]
 
             try:
                 # Stream output line by line so progress updates in real time.

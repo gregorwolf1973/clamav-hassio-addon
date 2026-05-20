@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.4 - 2026-05-20
+
+### Added
+- New `daemon_mode` config option to trade RAM for speed:
+  - `always` (default, previous behavior): clamd daemon stays running and
+    keeps the ~1 GB signature DB in RAM permanently. Scans start instantly.
+  - `on_demand`: no daemon; each scan invokes `clamscan` directly, which
+    loads the DB fresh from disk per scan and releases the RAM afterwards.
+    Idle RAM drops from ~1 GB to ~50 MB, but each scan has 30–60s extra
+    startup time. Recommended for Raspberry Pi or low-RAM hardware that
+    only scans once a day.
+
 ## 1.0.3 - 2026-05-20
 
 ### Fixed

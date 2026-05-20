@@ -8,6 +8,7 @@ bashio::log.info "Starting ClamAV Antivirus Addon..."
 export WEB_PORT;               WEB_PORT=$(bashio::config 'web_port')
 export SCAN_SCHEDULE;          SCAN_SCHEDULE=$(bashio::config 'scan_schedule')
 export SCAN_HOUR;              SCAN_HOUR=$(bashio::config 'scan_hour')
+export DAEMON_MODE;            DAEMON_MODE=$(bashio::config 'daemon_mode')
 export AUTO_QUARANTINE;        AUTO_QUARANTINE=$(bashio::config 'auto_quarantine')
 export MAX_FILE_SIZE_MB;       MAX_FILE_SIZE_MB=$(bashio::config 'max_file_size_mb')
 export NOTIFY_HA;              NOTIFY_HA=$(bashio::config 'notify_ha')
@@ -59,34 +60,40 @@ if [ -z "$DB_FILES" ]; then
     exit 1
 fi
 
-# ── Start clamd daemon ─────────────────────────────────────────
-bashio::log.info "Starting clamd daemon (loading signature DB, this takes 30–60s)..."
-clamd &
-CLAMD_PID=$!
+# ── Start clamd daemon (only in 'always' mode) ─────────────────
+# In 'on_demand' mode we skip clamd entirely — scans use clamscan directly,
+# which loads the DB from disk per scan and releases the RAM afterwards.
+if [ "${DAEMON_MODE}" = "on_demand" ]; then
+    bashio::log.info "Daemon mode: on_demand — clamd NOT started (saves ~1 GB RAM)"
+    bashio::log.info "Each scan will load the signature DB on demand (+30-60s startup)"
+else
+    bashio::log.info "Daemon mode: always — starting clamd (loading signature DB, this takes 30–60s)..."
+    clamd &
+    CLAMD_PID=$!
 
-# Wait for clamd socket to become ready (up to 120s — DB load is slow)
-WAITED=0
-while [ ! -S /var/run/clamav/clamd.sock ] && [ $WAITED -lt 120 ]; do
-    # If clamd process died, fail fast and show its log
-    if ! kill -0 "$CLAMD_PID" 2>/dev/null; then
-        bashio::log.fatal "clamd process died during startup. Last lines from clamav.log:"
+    # Wait for clamd socket to become ready (up to 120s — DB load is slow)
+    WAITED=0
+    while [ ! -S /var/run/clamav/clamd.sock ] && [ $WAITED -lt 120 ]; do
+        if ! kill -0 "$CLAMD_PID" 2>/dev/null; then
+            bashio::log.fatal "clamd process died during startup. Last lines from clamav.log:"
+            tail -n 30 /var/log/clamav/clamav.log 2>&1 || echo "(no log file)"
+            exit 1
+        fi
+        sleep 2
+        WAITED=$(( WAITED + 2 ))
+        if [ $(( WAITED % 20 )) -eq 0 ]; then
+            bashio::log.info "Still waiting for clamd... (${WAITED}s)"
+        fi
+    done
+
+    if [ ! -S /var/run/clamav/clamd.sock ]; then
+        bashio::log.fatal "clamd socket /var/run/clamav/clamd.sock did not appear within 120s."
+        bashio::log.fatal "Last lines from clamav.log:"
         tail -n 30 /var/log/clamav/clamav.log 2>&1 || echo "(no log file)"
         exit 1
     fi
-    sleep 2
-    WAITED=$(( WAITED + 2 ))
-    if [ $(( WAITED % 20 )) -eq 0 ]; then
-        bashio::log.info "Still waiting for clamd... (${WAITED}s)"
-    fi
-done
-
-if [ ! -S /var/run/clamav/clamd.sock ]; then
-    bashio::log.fatal "clamd socket /var/run/clamav/clamd.sock did not appear within 120s."
-    bashio::log.fatal "Last lines from clamav.log:"
-    tail -n 30 /var/log/clamav/clamav.log 2>&1 || echo "(no log file)"
-    exit 1
+    bashio::log.info "clamd ready after ${WAITED}s"
 fi
-bashio::log.info "clamd ready after ${WAITED}s"
 
 # ── Start scheduled scan background daemon ────────────────────
 bashio::log.info "Schedule: ${SCAN_SCHEDULE} (hour ${SCAN_HOUR})"
