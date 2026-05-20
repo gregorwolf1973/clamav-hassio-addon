@@ -209,6 +209,7 @@
     <div id="progress-wrap" class="progress-wrap">
       <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
       <div class="progress-label" id="progress-label">Scanning…</div>
+      <div id="progress-current-file" style="font-size:.72rem;color:var(--text-dim);margin-top:4px;font-family:ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left;"></div>
     </div>
 
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
@@ -272,8 +273,8 @@
           </td></tr>
           <tr><td style="color:var(--text-dim)">Started</td><td>{{ last_scan.started_at[:19] | replace('T',' ') }}</td></tr>
           <tr><td style="color:var(--text-dim)">Duration</td><td>{{ last_scan.duration_s }}s</td></tr>
-          <tr><td style="color:var(--text-dim)">Files</td><td>{{ last_scan.files_scanned }}</td></tr>
-          <tr><td style="color:var(--text-dim)">Triggered by</td><td>{{ last_scan.triggered_by }}</td></tr>
+          <tr><td style="color:var(--text-dim)">Files</td><td>{{ last_scan.files_scanned }}{% if last_scan.bytes_scanned %} <span style="color:var(--text-dim);font-size:.8em;">({{ (last_scan.bytes_scanned / 1024 / 1024) | round(1) }} MB)</span>{% endif %}</td></tr>
+          <tr><td style="color:var(--text-dim)">Triggered by</td><td>{{ last_scan.triggered_by }}{% if last_scan.incremental %} <span class="pill pill-warn" style="margin-left:6px;">incremental</span>{% endif %}{% if last_scan.scan_archives == false %} <span class="pill pill-warn" style="margin-left:6px;">no archives</span>{% endif %}</td></tr>
           {% if last_scan.errors %}
           <tr><td style="color:var(--text-dim)">Errors</td><td style="color:var(--warn)">{{ last_scan.errors | join(', ') }}</td></tr>
           {% endif %}
@@ -424,6 +425,14 @@ function startScan() {
     .catch(() => { toast('Failed to start scan', 'bad'); resetScanBtn(); });
 }
 
+function fmtBytes(n) {
+  if (!n) return '0 B';
+  const u = ['B','KB','MB','GB','TB'];
+  let i = 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(i === 0 ? 0 : 1)} ${u[i]}`;
+}
+
 function pollProgress() {
   fetch('api/scan/progress')
     .then(r => r.json())
@@ -436,8 +445,15 @@ function pollProgress() {
         setTimeout(() => location.reload(), 1500);
         return;
       }
-      document.getElementById('progress-label').textContent =
-        `Scanning: ${d.current_path || '…'} (${d.files_scanned} files)`;
+      let phase = d.phase || 'scanning';
+      let label;
+      if (phase === 'discovering') {
+        label = `Discovering changed files in ${d.current_path || '…'} (incremental)`;
+      } else {
+        label = `Scanning ${d.current_path || '…'} — ${d.files_scanned} files, ${fmtBytes(d.bytes_scanned)}`;
+      }
+      document.getElementById('progress-label').textContent = label;
+      document.getElementById('progress-current-file').textContent = d.current_file || '';
     });
 }
 

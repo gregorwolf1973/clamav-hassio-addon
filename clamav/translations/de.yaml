@@ -19,6 +19,34 @@ configuration:
       jeder Scan-Start 30-60 Sekunden länger (je nach Disk-Speed; SD-Karte
       langsam, SSD schnell). Empfohlen für RAM-knappe Hardware (z.B.
       Raspberry Pi) wenn du nur 1× täglich scannst.
+  scan_archives:
+    name: Archive scannen
+    description: >-
+      Wenn aktiv, entpackt ClamAV den Inhalt von Archiven (ZIP, TAR, RAR,
+      7z, PDF, Office, HTML) und scannt diese. Genauer aber sehr langsam
+      auf Media-Libraries. Wenn deaktiviert, werden nur die äußeren Dateien
+      gescannt — 5-20× schneller bei Media/Archiven, für private Mediathek
+      meist OK. Empfehlung - AUS für /media, AN für /share mit Dokumenten.
+  exclude_patterns:
+    name: Ausschluss-Muster (Regex)
+    description: >-
+      Regex-Muster auf vollen Dateipfaden. Dateien und Verzeichnisse die
+      auf ein Muster passen, werden übersprungen. Beispiele - "\\.mkv$"
+      überspringt alle .mkv-Dateien; "\\.(mp4|mkv|avi|mov)$" überspringt
+      Videos; "/cache/" überspringt jedes Cache-Verzeichnis. Großer
+      Geschwindigkeitsgewinn bei Mediatheken, da Videos groß sind und
+      praktisch nie Schadcode enthalten.
+  incremental_scan:
+    name: Inkrementeller Scan
+    description: >-
+      Wenn aktiv, werden nur Dateien gescannt, die seit dem letzten Scan
+      geändert wurden. Der erste Scan ist immer ein Vollscan. Folge-Scans
+      überspringen unveränderte Dateien komplett. Riesiger Speed-Boost bei
+      täglichen Scans auf stabilen Mediatheken (typisch 100× schneller
+      nach dem ersten Lauf). Nachteil - eine bereits infizierte aber
+      unveränderte Datei wird nicht erneut gescannt, auch wenn neue Viren-
+      Signaturen sie jetzt erkennen würden. Daher regelmäßig (z.B. monatlich)
+      einen Vollscan durchführen (diese Option zeitweise AUS).
   auto_quarantine:
     name: Infizierte Dateien automatisch quarantänisieren
     description: Infizierte Dateien werden automatisch in /data/quarantine verschoben.

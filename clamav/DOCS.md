@@ -27,6 +27,9 @@ On first start, freshclam downloads the ClamAV signature database (~300 MB). Thi
 | `scan_schedule` | `daily` | `disabled`, `hourly`, `daily`, `weekly` |
 | `scan_hour` | `2` | Hour of day for daily/weekly scan (0–23) |
 | `daemon_mode` | `always` | `always` (clamd permanent, ~1 GB RAM, fast scans) or `on_demand` (no daemon, ~50 MB RAM idle, +30–60s per scan). See below. |
+| `scan_archives` | `true` | Scan inside archives (ZIP/PDF/Office). Turn off for 5–20× speedup on media. |
+| `exclude_patterns` | `[]` | Regex patterns to skip (e.g. `\\.(mp4|mkv|avi)$` for videos). |
+| `incremental_scan` | `false` | Only scan files changed since last scan. Huge speedup for daily scheduled scans. |
 | `auto_quarantine` | `true` | Move infected files to `/data/quarantine` automatically |
 | `max_file_size_mb` | `100` | Skip files larger than this (MB) |
 | `notify_ha` | `true` | Send HA persistent notifications |
@@ -53,6 +56,39 @@ Scans are 30–60 seconds slower at start (SSD ~5–10s, SD card up to 60s).
 
 Switching modes only requires a restart of the addon — the signature DB on
 disk is identical for both modes.
+
+### Speed optimizations for large libraries
+
+A scan of `/media` with several hundred GB of files can easily take hours.
+The default configuration is the safest but slowest. Recommended tuning
+for typical home use:
+
+**Media libraries (/media full of videos/music):**
+```yaml
+scan_archives: false              # videos rarely contain malware
+exclude_patterns:
+  - "\\.(mp4|mkv|avi|mov|m4v|webm)$"   # skip video formats
+  - "\\.(flac|mp3|ogg|wav|m4a)$"       # skip audio formats
+  - "/cache/"                          # skip cache directories
+incremental_scan: true            # only scan new/changed files
+```
+With these settings a daily scan of a 500 GB media library typically
+completes in seconds after the initial full scan.
+
+**Document storage (/share with PDFs, Office docs, downloads):**
+```yaml
+scan_archives: true               # PDFs and Office files CAN contain malware
+exclude_patterns: []              # scan everything
+incremental_scan: true            # still useful — most files are unchanged
+```
+
+### Incremental scan caveat
+
+When `incremental_scan` is ON, a file that was already on disk during the
+previous scan is **not re-checked**, even if newer virus signatures would
+now detect it. Run a full scan (`incremental_scan: false`) periodically —
+e.g. once a month — to catch this case. The next incremental scan after
+that resumes from the full scan's timestamp.
 
 ## Scanning SimpleNAS / NotSoSimpleNas shares
 

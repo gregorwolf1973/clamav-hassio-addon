@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.0.6 - 2026-05-20
+
+### Added (speed optimizations for large libraries)
+- **`scan_archives` option** — toggle ZIP/PDF/Office/HTML unpacking.
+  Disable for ~5–20× speedup on media libraries where archives are rare
+  and large files dominate. Affects clamd.conf (always mode) and
+  clamscan flags (on_demand mode).
+- **`exclude_patterns` option** — list of regex patterns matched against
+  full file paths. Files and directories matching any pattern are skipped.
+  Big speedup when excluding videos/music.
+- **`incremental_scan` option** — only scan files modified since the
+  previous scan. First scan is full; subsequent scans skip unchanged
+  files entirely. Marker files stored in `/data/incremental/`, one per
+  scan path. Periodic full scan still recommended to re-check old files
+  against newer virus signatures.
+
+### UI improvements
+- Live scan progress now shows the **current file being scanned** and
+  total **MB throughput** (not just file count).
+- Last-scan card shows badges for `incremental` and `no archives` mode.
+- Scan history records bytes scanned and which optimizations were used.
+
 ## 1.0.5 - 2026-05-20
 
 ### Added

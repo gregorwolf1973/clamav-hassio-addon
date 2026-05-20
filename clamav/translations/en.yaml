@@ -19,6 +19,33 @@ configuration:
       but every scan has 30-60 seconds extra startup time (depending on disk
       speed; SD-card is slow, SSD is fast). Best for low-RAM hardware (e.g.
       Raspberry Pi) when you only scan once a day.
+  scan_archives:
+    name: Scan Inside Archives
+    description: >-
+      When ON, ClamAV unpacks and scans the contents of archives (ZIP, TAR,
+      RAR, 7z, PDF, Office documents, HTML). Most accurate but very slow
+      on media libraries. When OFF, only the outer files are scanned — this
+      gives 5–20× speedup for libraries dominated by media/archive files
+      and is usually safe for personal media. Recommended OFF for /media,
+      ON for /share if it contains documents.
+  exclude_patterns:
+    name: Exclude Patterns (regex)
+    description: >-
+      Regex patterns matched against full file paths. Files and directories
+      matching any pattern are skipped. Examples - "\\.mkv$" skips all .mkv
+      files; "\\.(mp4|mkv|avi|mov)$" skips video files; "/cache/" skips any
+      directory called cache. Big speedup on media libraries because videos
+      are large and rarely contain malware.
+  incremental_scan:
+    name: Incremental Scan
+    description: >-
+      When ON, only files modified since the previous scan are scanned.
+      First scan is always a full scan. Subsequent scans skip unchanged
+      files entirely. Huge speedup for scheduled daily scans on stable
+      libraries (typical - 100x faster after the first run). Trade-off -
+      a file that's already infected but unchanged since the last scan
+      won't be re-scanned even if new virus signatures would detect it
+      now. Run a full scan (turn this OFF) periodically (e.g. monthly).
   auto_quarantine:
     name: Auto-Quarantine Infected Files
     description: Automatically move infected files to the quarantine folder inside /data/quarantine.

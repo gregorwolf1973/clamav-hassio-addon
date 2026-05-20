@@ -9,12 +9,23 @@ export WEB_PORT;               WEB_PORT=$(bashio::config 'web_port')
 export SCAN_SCHEDULE;          SCAN_SCHEDULE=$(bashio::config 'scan_schedule')
 export SCAN_HOUR;              SCAN_HOUR=$(bashio::config 'scan_hour')
 export DAEMON_MODE;            DAEMON_MODE=$(bashio::config 'daemon_mode')
+export SCAN_ARCHIVES;          SCAN_ARCHIVES=$(bashio::config 'scan_archives')
+export INCREMENTAL_SCAN;       INCREMENTAL_SCAN=$(bashio::config 'incremental_scan')
 export AUTO_QUARANTINE;        AUTO_QUARANTINE=$(bashio::config 'auto_quarantine')
 export MAX_FILE_SIZE_MB;       MAX_FILE_SIZE_MB=$(bashio::config 'max_file_size_mb')
 export NOTIFY_HA;              NOTIFY_HA=$(bashio::config 'notify_ha')
 export ADMIN_PASSWORD_ENABLED; ADMIN_PASSWORD_ENABLED=$(bashio::config 'admin_password_enabled')
 export ADMIN_USERNAME;         ADMIN_USERNAME=$(bashio::config 'admin_username')
 export ADMIN_PASSWORD;         ADMIN_PASSWORD=$(bashio::config 'admin_password')
+
+# Build exclude pattern list as JSON (consumed by scanner.py)
+export EXCLUDE_PATTERNS
+EXCLUDE_PATTERNS=$(bashio::config 'exclude_patterns' | python3 -c "
+import sys, json
+lines = sys.stdin.read().strip().splitlines()
+patterns = [l.strip().strip('\"') for l in lines if l.strip()]
+print(json.dumps(patterns))
+")
 
 # Build JSON array of scan paths from config
 export SCAN_PATHS
@@ -30,6 +41,20 @@ bashio::log.info "Scan paths: ${SCAN_PATHS}"
 MAX_BYTES=$(( MAX_FILE_SIZE_MB * 1024 * 1024 ))
 sed -i "s/^MaxFileSize .*/MaxFileSize ${MAX_BYTES}/" /etc/clamav/clamd.conf
 sed -i "s/^MaxScanSize .*/MaxScanSize $(( MAX_BYTES * 4 ))/" /etc/clamav/clamd.conf
+
+# ── Archive scanning toggle (affects daemon mode) ──────────────
+# When archives are off, clamd scans only the outer file — huge speedup
+# for media libraries (skips ZIP/PDF/Office/HTML unpacking).
+if [ "${SCAN_ARCHIVES}" = "false" ]; then
+    bashio::log.info "Archive scanning DISABLED (faster, slight security trade-off)"
+    sed -i 's/^ScanArchive .*/ScanArchive no/'  /etc/clamav/clamd.conf
+    sed -i 's/^ScanPDF .*/ScanPDF no/'          /etc/clamav/clamd.conf
+    sed -i 's/^ScanOLE2 .*/ScanOLE2 no/'        /etc/clamav/clamd.conf
+    sed -i 's/^ScanSWF .*/ScanSWF no/'          /etc/clamav/clamd.conf
+    sed -i 's/^ScanHTML .*/ScanHTML no/'        /etc/clamav/clamd.conf
+else
+    bashio::log.info "Archive scanning enabled (default, slower)"
+fi
 
 # ── Persistent data dirs ───────────────────────────────────────
 # /var/run is tmpfs and is wiped on every restart, so recreate the socket dir.
