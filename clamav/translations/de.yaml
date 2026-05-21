@@ -27,15 +27,36 @@ configuration:
       auf Media-Libraries. Wenn deaktiviert, werden nur die äußeren Dateien
       gescannt — 5-20× schneller bei Media/Archiven, für private Mediathek
       meist OK. Empfehlung - AUS für /media, AN für /share mit Dokumenten.
-  exclude_patterns:
-    name: Ausschluss-Muster (Regex)
+  skip_images:
+    name: Bilddateien überspringen
     description: >-
-      Regex-Muster auf vollen Dateipfaden. Dateien und Verzeichnisse die
-      auf ein Muster passen, werden übersprungen. Beispiele - "\\.mkv$"
-      überspringt alle .mkv-Dateien; "\\.(mp4|mkv|avi|mov)$" überspringt
-      Videos; "/cache/" überspringt jedes Cache-Verzeichnis. Großer
-      Geschwindigkeitsgewinn bei Mediatheken, da Videos groß sind und
-      praktisch nie Schadcode enthalten.
+      Wenn aktiv, werden gängige Bildformate (jpg, jpeg, png, gif, webp,
+      heic, tiff, bmp, raw, cr2, nef, arw, dng, svg) übersprungen.
+      Bilddateien enthalten praktisch nie von ClamAV erkennbaren Schadcode.
+      Spart viel Zeit bei großen Fotosammlungen. Groß-/Kleinschreibung
+      egal (.JPG und .jpg passen beide).
+  skip_videos:
+    name: Videodateien überspringen
+    description: >-
+      Wenn aktiv, werden gängige Videoformate (mp4, mkv, mov, avi, m4v,
+      webm, wmv, flv, 3gp, mts, m2ts, mpeg, mpg) übersprungen. Videos sind
+      groß und enthalten praktisch nie Schadcode — größter Speed-Boost
+      auf Mediatheken. Groß-/Kleinschreibung egal.
+  skip_audio:
+    name: Audiodateien überspringen
+    description: >-
+      Wenn aktiv, werden gängige Audioformate (mp3, flac, wav, m4a, ogg,
+      aac, opus, wma, aiff) übersprungen. Audiodateien enthalten praktisch
+      nie Schadcode. Groß-/Kleinschreibung egal.
+  exclude_patterns:
+    name: Eigene Ausschluss-Muster (Regex)
+    description: >-
+      Zusätzliche Regex-Muster auf vollen Dateipfaden. Dateien und
+      Verzeichnisse die passen werden übersprungen — zusätzlich zu den
+      Toggles "Bilder/Videos/Audio überspringen" oben. Beispiele - "\.mkv$"
+      überspringt alle .mkv-Dateien; "/cache/" überspringt jedes Cache-
+      Verzeichnis. Im HA-UI-Formular: einfacher Backslash (\.mkv$); seit
+      v1.0.9 werden beide Schreibweisen (\.mkv$ und \\.mkv$) akzeptiert.
   incremental_scan:
     name: Inkrementeller Scan
     description: >-

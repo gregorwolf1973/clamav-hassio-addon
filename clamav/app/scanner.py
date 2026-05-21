@@ -18,6 +18,53 @@ DB_DIR            = "/data/clamav-db"
 
 SUPERVISOR_TOKEN  = os.environ.get("SUPERVISOR_TOKEN", "")
 
+# Predefined exclude pattern groups, toggled via skip_images/videos/audio
+# in the addon config. Case-insensitive via [aA] character classes since
+# clamscan's POSIX regex has no inline /i flag.
+PRESET_PATTERNS = {
+    "images": [
+        r"\.[jJ][pP][eE]?[gG]$",       # .jpg .jpeg
+        r"\.[pP][nN][gG]$",
+        r"\.[gG][iI][fF]$",
+        r"\.[wW][eE][bB][pP]$",
+        r"\.[hH][eE][iI][cC]$",
+        r"\.[tT][iI][fF][fF]?$",       # .tif .tiff
+        r"\.[bB][mM][pP]$",
+        r"\.[rR][aA][wW]$",
+        r"\.[cC][rR]2$",
+        r"\.[nN][eE][fF]$",
+        r"\.[aA][rR][wW]$",
+        r"\.[dD][nN][gG]$",
+        r"\.[sS][vV][gG]$",
+    ],
+    "videos": [
+        r"\.[mM][pP]4$",
+        r"\.[mM][kK][vV]$",
+        r"\.[mM][oO][vV]$",
+        r"\.[aA][vV][iI]$",
+        r"\.[mM]4[vV]$",
+        r"\.[wW][eE][bB][mM]$",
+        r"\.[wW][mM][vV]$",
+        r"\.[fF][lL][vV]$",
+        r"\.3[gG][pP]$",
+        r"\.[mM][tT][sS]$",
+        r"\.[mM]2[tT][sS]$",
+        r"\.[mM][pP][eE][gG]$",
+        r"\.[mM][pP][gG]$",
+    ],
+    "audio": [
+        r"\.[mM][pP]3$",
+        r"\.[fF][lL][aA][cC]$",
+        r"\.[wW][aA][vV]$",
+        r"\.[mM]4[aA]$",
+        r"\.[oO][gG][gG]$",
+        r"\.[aA][aA][cC]$",
+        r"\.[oO][pP][uU][sS]$",
+        r"\.[wW][mM][aA]$",
+        r"\.[aA][iI][fF][fF]?$",
+    ],
+}
+
 
 def _normalize_pattern(pat: str) -> str:
     """Collapse `\\\\` → `\\` and `\\.` → `\\.` (no-op for the dot case;
@@ -74,9 +121,24 @@ def _load_config() -> dict:
             return []
 
     raw_excludes = _l("exclude_patterns", "EXCLUDE_PATTERNS")
+    custom = [_normalize_pattern(p) for p in raw_excludes if p]
+
+    # Expand preset toggles into regex patterns merged with the custom list.
+    skip_images = _b("skip_images", "SKIP_IMAGES")
+    skip_videos = _b("skip_videos", "SKIP_VIDEOS")
+    skip_audio  = _b("skip_audio",  "SKIP_AUDIO")
+    preset_patterns = []
+    if skip_images: preset_patterns += PRESET_PATTERNS["images"]
+    if skip_videos: preset_patterns += PRESET_PATTERNS["videos"]
+    if skip_audio:  preset_patterns += PRESET_PATTERNS["audio"]
+
     return {
         "scan_paths":       _l("scan_paths",      "SCAN_PATHS") or ["/share", "/media"],
-        "exclude_patterns": [_normalize_pattern(p) for p in raw_excludes if p],
+        "exclude_patterns": preset_patterns + custom,
+        "exclude_custom":   custom,           # for diagnostics / UI
+        "skip_images":      skip_images,
+        "skip_videos":      skip_videos,
+        "skip_audio":       skip_audio,
         "auto_quarantine":  _b("auto_quarantine", "AUTO_QUARANTINE"),
         "notify_ha":        _b("notify_ha",       "NOTIFY_HA"),
         "scan_archives":    _b("scan_archives",   "SCAN_ARCHIVES"),

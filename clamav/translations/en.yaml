@@ -28,14 +28,36 @@ configuration:
       gives 5–20× speedup for libraries dominated by media/archive files
       and is usually safe for personal media. Recommended OFF for /media,
       ON for /share if it contains documents.
-  exclude_patterns:
-    name: Exclude Patterns (regex)
+  skip_images:
+    name: Skip Image Files
     description: >-
-      Regex patterns matched against full file paths. Files and directories
-      matching any pattern are skipped. Examples - "\\.mkv$" skips all .mkv
-      files; "\\.(mp4|mkv|avi|mov)$" skips video files; "/cache/" skips any
-      directory called cache. Big speedup on media libraries because videos
-      are large and rarely contain malware.
+      When ON, common image formats (jpg, jpeg, png, gif, webp, heic, tiff,
+      bmp, raw, cr2, nef, arw, dng, svg) are skipped. Image files rarely
+      contain malware that ClamAV can detect, and skipping them gives a
+      big speedup on photo libraries. Case-insensitive (.JPG and .jpg both
+      match).
+  skip_videos:
+    name: Skip Video Files
+    description: >-
+      When ON, common video formats (mp4, mkv, mov, avi, m4v, webm, wmv,
+      flv, 3gp, mts, m2ts, mpeg, mpg) are skipped. Videos are large and
+      rarely contain malware — skipping them gives the biggest speedup
+      on media libraries. Case-insensitive.
+  skip_audio:
+    name: Skip Audio Files
+    description: >-
+      When ON, common audio formats (mp3, flac, wav, m4a, ogg, aac, opus,
+      wma, aiff) are skipped. Audio files rarely contain malware. Case-
+      insensitive.
+  exclude_patterns:
+    name: Custom Exclude Patterns (regex)
+    description: >-
+      Additional regex patterns matched against full file paths. Files and
+      directories matching any pattern are skipped — in addition to the
+      Skip Images/Videos/Audio toggles above. Examples - "\.mkv$" skips
+      all .mkv files; "/cache/" skips any directory called cache. In the
+      HA UI form, type a single backslash (\.mkv$); both single and double
+      backslash variants are accepted since v1.0.9.
   incremental_scan:
     name: Incremental Scan
     description: >-

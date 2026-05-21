@@ -28,7 +28,10 @@ On first start, freshclam downloads the ClamAV signature database (~300 MB). Thi
 | `scan_hour` | `2` | Hour of day for daily/weekly scan (0–23) |
 | `daemon_mode` | `always` | `always` (clamd permanent, ~1 GB RAM, fast scans) or `on_demand` (no daemon, ~50 MB RAM idle, +30–60s per scan). See below. |
 | `scan_archives` | `true` | Scan inside archives (ZIP/PDF/Office). Turn off for 5–20× speedup on media. |
-| `exclude_patterns` | `[]` | Regex patterns to skip (e.g. `\\.(mp4|mkv|avi)$` for videos). |
+| `skip_images` | `true` | Skip common image formats (jpg, png, gif, webp, heic, tiff, bmp, raw, cr2, nef, arw, dng, svg). Case-insensitive. |
+| `skip_videos` | `true` | Skip common video formats (mp4, mkv, mov, avi, m4v, webm, wmv, flv, 3gp, mts, m2ts, mpeg, mpg). Case-insensitive. |
+| `skip_audio` | `true` | Skip common audio formats (mp3, flac, wav, m4a, ogg, aac, opus, wma, aiff). Case-insensitive. |
+| `exclude_patterns` | `[]` | Additional custom regex patterns to skip, *on top of* the preset toggles above. |
 | `incremental_scan` | `false` | Only scan files changed since last scan. Huge speedup for daily scheduled scans. |
 | `auto_quarantine` | `true` | Move infected files to `/data/quarantine` automatically |
 | `max_file_size_mb` | `100` | Skip files larger than this (MB) |
@@ -66,12 +69,18 @@ for typical home use:
 **Media libraries (/media full of videos/music):**
 ```yaml
 scan_archives: false              # videos rarely contain malware
+skip_images: true                 # all common image formats (default)
+skip_videos: true                 # all common video formats (default)
+skip_audio:  true                 # all common audio formats (default)
 exclude_patterns:
-  - "\\.(mp4|mkv|avi|mov|m4v|webm)$"   # skip video formats
-  - "\\.(flac|mp3|ogg|wav|m4a)$"       # skip audio formats
-  - "/cache/"                          # skip cache directories
+  - "/cache/"                     # add your own custom patterns here
 incremental_scan: true            # only scan new/changed files
 ```
+
+Since v1.0.10 the three `skip_*` toggles replace the previous lengthy
+regex lists for media formats. They default to **ON**, are
+case-insensitive (so `.JPG` and `.jpg` both match), and apply on top
+of any custom `exclude_patterns`.
 
 > **Note on regex syntax.** The YAML examples above use `\\.` because
 > YAML uses `\\` as the escape for a single `\`. **In the Home Assistant
@@ -86,6 +95,9 @@ completes in seconds after the initial full scan.
 **Document storage (/share with PDFs, Office docs, downloads):**
 ```yaml
 scan_archives: true               # PDFs and Office files CAN contain malware
+skip_images: false                # scan images too — paranoid but cheap
+skip_videos: false
+skip_audio:  false
 exclude_patterns: []              # scan everything
 incremental_scan: true            # still useful — most files are unchanged
 ```
@@ -93,9 +105,10 @@ incremental_scan: true            # still useful — most files are unchanged
 ### Options that take effect immediately vs. require restart
 
 Since v1.0.8 the scanner re-reads its options at the start of every scan,
-so toggling **incremental_scan**, **exclude_patterns**, **auto_quarantine**,
-**notify_ha** and **max_file_size_mb** in the HA UI applies on the next
-scan — no addon restart needed.
+so toggling **incremental_scan**, **exclude_patterns**, **skip_images**,
+**skip_videos**, **skip_audio**, **auto_quarantine**, **notify_ha** and
+**max_file_size_mb** in the HA UI applies on the next scan — no addon
+restart needed.
 
 **Still need an addon restart**: `daemon_mode` and `scan_archives` in
 daemon mode, because they're baked into `clamd.conf` at startup.

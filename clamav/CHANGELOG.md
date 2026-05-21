@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.0.10 - 2026-05-21
+
+### Added
+- **One-click skip toggles for media files**: new `skip_images`,
+  `skip_videos` and `skip_audio` options. When enabled, files matching
+  built-in case-insensitive regex lists are skipped:
+  - **images** (13 formats): jpg, jpeg, png, gif, webp, heic, tiff, bmp,
+    raw, cr2, nef, arw, dng, svg
+  - **videos** (13 formats): mp4, mkv, mov, avi, m4v, webm, wmv, flv,
+    3gp, mts, m2ts, mpeg, mpg
+  - **audio** (9 formats): mp3, flac, wav, m4a, ogg, aac, opus, wma, aiff
+
+  All three default to **ON** since the typical use-case is scanning
+  `/media`, where these formats dominate and rarely contain ClamAV-
+  detectable malware. Disable a toggle to force full scanning of that
+  category. Custom regex patterns can still be added via
+  `exclude_patterns` — they are applied **in addition** to the preset
+  toggles. Patterns are case-insensitive via character classes
+  (`[jJ][pP][gG]`), so `.JPG` and `.jpg` are both matched without an
+  `/i` flag (clamscan uses POSIX regex which has no inline case flag).
+
+### Changed
+- `exclude_patterns` is now strictly a *user-custom* additive list. The
+  effective exclude regex used by clamscan is `preset_patterns + custom`.
+  The Diagnostics card shows the combined list.
+
 ## 1.0.9 - 2026-05-20
 
 ### Fixed

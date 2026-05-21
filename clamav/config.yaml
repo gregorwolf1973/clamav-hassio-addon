@@ -1,6 +1,6 @@
 name: "ClamAV Antivirus"
 description: "ClamAV-based antivirus scanner for Home Assistant with web GUI, scheduled scans, quarantine and HA notifications"
-version: "1.0.9"
+version: "1.0.10"
 url: "https://github.com/gregorwolf1973/clamav-hassio-addon"
 slug: "clamav"
 init: false
@@ -26,6 +26,9 @@ options:
   scan_hour: 2
   daemon_mode: "always"
   scan_archives: true
+  skip_images: true
+  skip_videos: true
+  skip_audio: true
   exclude_patterns: []
   incremental_scan: false
   auto_quarantine: true
@@ -43,6 +46,9 @@ schema:
   scan_hour: int(0,23)
   daemon_mode: list(always|on_demand)
   scan_archives: bool
+  skip_images: bool
+  skip_videos: bool
+  skip_audio: bool
   exclude_patterns:
     - str
   incremental_scan: bool
