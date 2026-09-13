@@ -29,7 +29,7 @@ LocalSocket /var/run/clamav/clamd.sock
 LocalSocketMode 666
 FixStaleSocket yes
 TCPSocket 3310
-TCPAddr 127.0.0.1
+TCPAddr 0.0.0.0
 MaxConnectionQueueLength 30
 MaxThreads 10
 ReadTimeout 300

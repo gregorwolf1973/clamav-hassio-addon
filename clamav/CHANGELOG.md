@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.12 - 2026-09-13
+
+### Changed
+- clamd is reachable from other add-ons: `TCPAddr 0.0.0.0` inside the
+  container plus a host port mapping `3310/tcp` (disable it in the add-on's
+  network settings if nothing uses it). Simple NAS uses this for scanning
+  uploads that arrive through share links. Requires `daemon_mode: always`;
+  in `on_demand` mode there is no running daemon to talk to.
+
 ## 1.0.10 - 2026-05-21
 
 ### Added
