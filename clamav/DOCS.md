@@ -38,11 +38,33 @@ On first start, freshclam downloads the ClamAV signature database (~300 MB). Thi
 | `auto_quarantine` | `true` | Move infected files to `/data/quarantine` automatically |
 | `max_file_size_mb` | `100` | Skip files larger than this (MB) |
 | `notify_ha` | `true` | Send HA persistent notifications |
-| `log_level` | `info` | `trace`, `debug`, `info`, `notice`, `warning`, `error`, `fatal` |
-| `web_port` | `8200` | Web GUI port |
+| `log_level` | `info` | `trace`, `debug`, `info`, `notice`, `warning`, `error`, `fatal` — see below |
+| `web_port` | `8200` | Port the web GUI listens on **inside the container**. Do not change — see below. |
 | `admin_password_enabled` | `false` | Enable login for web GUI |
 | `admin_username` | `admin` | Username for the web GUI login |
 | `admin_password` | empty | Password for the web GUI login (only used when `admin_password_enabled` is on) |
+
+### Logging (`log_level`)
+
+`log_level` controls how much the addon logs:
+
+- The startup script (`run.sh`) — bashio messages below the configured
+  level are dropped.
+- The web GUI, the scheduler and the scanner (Python logging). At
+  `warning` and above the web GUI's per-request access lines disappear,
+  at `debug`/`trace` you additionally get per-path file counts.
+- `debug` and `trace` also switch `clamd` and `freshclam` to verbose
+  logging (`LogVerbose yes`).
+
+The level is applied at startup, so changing it requires an addon restart.
+
+### Web GUI port (`web_port`)
+
+The Home Assistant panel uses ingress, which is hard-wired to port `8200`
+(`ingress_port` in `config.yaml`), and the web GUI port is *not* published
+to the host. So `web_port` only changes the port the Flask app binds inside
+the container — set it to anything other than `8200` and the panel (and any
+other way of reaching the GUI) stops working. Leave it at `8200`.
 
 ### Daemon Mode: RAM vs. Speed Trade-off
 
@@ -87,13 +109,12 @@ regex lists for media formats. They default to **ON**, are
 case-insensitive (so `.JPG` and `.jpg` both match), and apply on top
 of any custom `exclude_patterns`.
 
-> **Note on regex syntax.** The YAML examples above use `\\.` because
-> YAML uses `\\` as the escape for a single `\`. **In the Home Assistant
-> UI form, type a single backslash instead — `\.mp4$` etc.** The form
-> takes the value verbatim, so `\\.mp4$` from the YAML examples would
-> become a regex looking for a literal backslash and not match anything.
-> Since v1.0.9 the scanner accepts both forms (it collapses `\\` to `\`)
-> so existing configs keep working.
+> **Note on regex syntax.** In the Home Assistant UI form, type patterns
+> with a single backslash — `\.mp4$`, `/cache/` etc. The form takes the
+> value verbatim. Since v1.0.9 the scanner also accepts the double-backslash
+> form (`\\.mp4$`) that YAML escaping produces, so existing configs keep
+> working.
+
 With these settings a daily scan of a 500 GB media library typically
 completes in seconds after the initial full scan.
 
@@ -111,12 +132,17 @@ incremental_scan: true            # still useful — most files are unchanged
 
 Since v1.0.8 the scanner re-reads its options at the start of every scan,
 so toggling **incremental_scan**, **exclude_patterns**, **skip_images**,
-**skip_videos**, **skip_audio**, **auto_quarantine**, **notify_ha** and
-**max_file_size_mb** in the HA UI applies on the next scan — no addon
-restart needed.
+**skip_videos**, **skip_audio**, **auto_quarantine** and **notify_ha**
+in the HA UI applies on the next scan — no addon restart needed.
 
-**Still need an addon restart**: `daemon_mode` and `scan_archives` in
-daemon mode, because they're baked into `clamd.conf` at startup.
+**max_file_size_mb** depends on the daemon mode: in `on_demand` mode it is
+passed to `clamscan` per scan and applies immediately, but in `always`
+mode the limit comes from `MaxFileSize`/`MaxScanSize` in `clamd.conf`,
+which `run.sh` writes at startup — so there it takes an addon restart.
+
+**Always need an addon restart**: `daemon_mode`, `log_level`, `web_port`,
+the login options, and `scan_archives` in daemon mode (baked into
+`clamd.conf` at startup).
 
 ### Incremental scan caveat
 
@@ -146,5 +172,8 @@ Infected files are moved to `/data/quarantine/` inside the addon's persistent st
 
 - ClamAV's signature database is stored persistently in `/data/clamav-db/` (full download on first start, only updates afterwards). Signatures are updated automatically before each start and can be updated manually via the web GUI.
 - clamd also listens on TCP port `3310` (mapped to host port `3310`) so other add-ons such as Simple NAS can use it for scanning. This requires `daemon_mode: always`; disable the port in the add-on's network settings if nothing uses it.
-- `armv7` support is best-effort; ClamAV may be slow on older ARM hardware.
+- Images are built for `amd64`, `aarch64` and `armv7` (see `arch` in
+  `config.yaml`). `armv7` support is best-effort: ClamAV's ~1 GB signature
+  database is heavy for 32-bit ARM hardware, so use `daemon_mode: on_demand`
+  there and expect slow scans.
 - Large NAS libraries (100k+ files) may take 10–30 minutes to scan.

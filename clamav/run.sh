@@ -2,7 +2,17 @@
 
 set -e
 
+# ── Log level ──────────────────────────────────────────────────
+# Applies to bashio's own messages in this script and is exported so the
+# Python processes (app.py, scheduler.py) can configure Python logging.
+export LOG_LEVEL="info"
+if bashio::config.has_value 'log_level'; then
+    LOG_LEVEL=$(bashio::config 'log_level')
+    bashio::log.level "${LOG_LEVEL}"
+fi
+
 bashio::log.info "Starting ClamAV Antivirus Addon..."
+bashio::log.debug "Log level: ${LOG_LEVEL}"
 
 # ── Read config ────────────────────────────────────────────────
 export WEB_PORT;               WEB_PORT=$(bashio::config 'web_port')
@@ -44,6 +54,15 @@ bashio::log.info "Scan paths: ${SCAN_PATHS}"
 MAX_BYTES=$(( MAX_FILE_SIZE_MB * 1024 * 1024 ))
 sed -i "s/^MaxFileSize .*/MaxFileSize ${MAX_BYTES}/" /etc/clamav/clamd.conf
 sed -i "s/^MaxScanSize .*/MaxScanSize $(( MAX_BYTES * 4 ))/" /etc/clamav/clamd.conf
+
+# ── ClamAV verbosity follows the log_level option ──────────────
+# Only trace/debug turn on verbose logging for clamd and freshclam; every
+# other level keeps the (quiet) default.
+if [ "${LOG_LEVEL}" = "debug" ] || [ "${LOG_LEVEL}" = "trace" ]; then
+    bashio::log.debug "Enabling verbose clamd/freshclam logging"
+    sed -i 's/^LogVerbose .*/LogVerbose yes/' /etc/clamav/clamd.conf
+    sed -i 's/^LogVerbose .*/LogVerbose yes/' /etc/clamav/freshclam.conf
+fi
 
 # ── Archive scanning toggle (affects daemon mode) ──────────────
 # When archives are off, clamd scans only the outer file — huge speedup

@@ -1,11 +1,44 @@
 """ClamAV scan logic: run clamscan, parse results, quarantine, notify HA."""
 import json
+import logging
 import os
 import re
 import shutil
 import subprocess
 import time
 from datetime import datetime
+
+log = logging.getLogger("scanner")
+
+# Map the addon's `log_level` option (ClamAV/bashio level names) to Python
+# logging levels. run.sh exports the option as LOG_LEVEL.
+LOG_LEVELS = {
+    "trace":   logging.DEBUG,
+    "debug":   logging.DEBUG,
+    "info":    logging.INFO,
+    "notice":  logging.INFO,
+    "warning": logging.WARNING,
+    "error":   logging.ERROR,
+    "fatal":   logging.CRITICAL,
+}
+
+
+def configure_logging() -> int:
+    """Configure Python logging from the addon's log_level option.
+
+    Called by app.py and scheduler.py at startup (they are separate
+    processes). Also applies to Flask's request log (werkzeug), so
+    `warning` and above silence the per-request access lines.
+    """
+    name = os.environ.get("LOG_LEVEL", "info").strip().lower()
+    level = LOG_LEVELS.get(name, logging.INFO)
+    logging.basicConfig(
+        level=level,
+        format="%(levelname)s [%(name)s] %(message)s",
+        force=True,
+    )
+    logging.getLogger("werkzeug").setLevel(level)
+    return level
 
 DATA_DIR          = "/data"
 HISTORY_FILE      = f"{DATA_DIR}/history/scans.json"
@@ -316,12 +349,12 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
         return {"error": "Scan already running"}
 
     cfg = _load_config()
-    print(
-        f"[scanner] cfg: incremental={cfg['incremental_scan']} "
-        f"archives={cfg['scan_archives']} "
-        f"quarantine={cfg['auto_quarantine']} "
-        f"exclude={cfg['exclude_patterns']}",
-        flush=True,
+    log.info(
+        "cfg: incremental=%s archives=%s quarantine=%s exclude=%s",
+        cfg["incremental_scan"],
+        cfg["scan_archives"],
+        cfg["auto_quarantine"],
+        cfg["exclude_patterns"],
     )
 
     _scan_running = True
@@ -365,10 +398,10 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
                         break
             except OSError:
                 pass
-            print(
-                f"[scanner] path={path} pre-scan file count: "
-                f"{'>5000' if pre_count > 5000 else pre_count}",
-                flush=True,
+            log.debug(
+                "path=%s pre-scan file count: %s",
+                path,
+                ">5000" if pre_count > 5000 else pre_count,
             )
             if pre_count == 0:
                 errors.append(f"{path}: directory is empty (nothing to scan)")
@@ -408,7 +441,7 @@ def run_scan(paths=None, triggered_by="manual") -> dict:
             _scan_progress["phase"] = "scanning"
             cmd = _build_scan_cmd(target, is_file_list=(file_list_path is not None), cfg=cfg)
             last_cmd = cmd
-            print(f"[scanner] run: {' '.join(cmd)}", flush=True)
+            log.info("run: %s", " ".join(cmd))
 
             stderr_buf = []
             try:

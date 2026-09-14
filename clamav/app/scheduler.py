@@ -1,9 +1,12 @@
 """Background scheduler: trigger ClamAV scans on the configured interval."""
+import logging
 import os
 import time
 from datetime import datetime
 
 import scanner
+
+log = logging.getLogger("scheduler")
 
 SCAN_SCHEDULE = os.environ.get("SCAN_SCHEDULE", "daily")
 SCAN_HOUR     = int(os.environ.get("SCAN_HOUR", "2"))
@@ -40,22 +43,27 @@ def _seconds_until_next(hour: int) -> int:
 
 
 if __name__ == "__main__":
+    scanner.configure_logging()
+
     if SCAN_SCHEDULE == "disabled":
-        print("[scheduler] Scheduled scans disabled.")
+        log.info("Scheduled scans disabled.")
         while True:
             time.sleep(3600)
 
-    print(f"[scheduler] Schedule: {SCAN_SCHEDULE}, hour: {SCAN_HOUR}")
+    log.info("Schedule: %s, hour: %s", SCAN_SCHEDULE, SCAN_HOUR)
 
     while True:
         wait = _seconds_until_next(SCAN_HOUR)
-        print(f"[scheduler] Next scan in {wait}s ({SCAN_SCHEDULE})")
+        log.info("Next scan in %ss (%s)", wait, SCAN_SCHEDULE)
         time.sleep(wait)
-        print(f"[scheduler] Starting scheduled scan at {datetime.now().isoformat()}")
+        log.info("Starting scheduled scan at %s", datetime.now().isoformat())
         try:
             result = scanner.run_scan(triggered_by="scheduled")
-            print(f"[scheduler] Done: {result['status']}, "
-                  f"{result['files_scanned']} files, "
-                  f"{result['infected_count']} threats")
+            log.info(
+                "Done: %s, %s files, %s threats",
+                result["status"],
+                result["files_scanned"],
+                result["infected_count"],
+            )
         except Exception as e:
-            print(f"[scheduler] Error: {e}")
+            log.error("Error: %s", e)

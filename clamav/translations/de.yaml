@@ -79,10 +79,19 @@ configuration:
     description: Sendet eine persistente HA-Benachrichtigung wenn ein Scan abgeschlossen ist oder eine Bedrohung gefunden wurde.
   log_level:
     name: Log-Level
-    description: Detailgrad der Addon-Protokollierung.
+    description: >-
+      Detailgrad der Addon-Protokollierung (Start-Skript, Web-GUI,
+      Scheduler und Scanner). 'debug' und 'trace' schalten zusätzlich die
+      ausführliche Protokollierung von clamd und freshclam ein. Ab
+      'warning' verschwinden auch die Zugriffszeilen der Weboberfläche.
+      Änderung erfordert einen Neustart des Addons.
   web_port:
     name: Web-GUI-Port
-    description: Port für die Weboberfläche (Standard 8200).
+    description: >-
+      Port, auf dem die Weboberfläche im Container lauscht (Standard 8200).
+      NICHT ändern - das Home-Assistant-Panel (Ingress) erwartet fest Port
+      8200. Ein anderer Wert macht die Weboberfläche unerreichbar, da der
+      Port auch nicht auf den Host veröffentlicht wird.
   admin_password_enabled:
     name: Passwortschutz aktivieren
     description: Schützt die Weboberfläche mit Benutzername und Passwort.

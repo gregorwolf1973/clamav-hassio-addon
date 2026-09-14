@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.0.13 - 2026-09-14
+
+### Fixed
+- The `log_level` option is now actually applied. `run.sh` sets the bashio
+  log level and exports `LOG_LEVEL`; the web GUI, the scheduler and the
+  scanner configure Python logging from it (the scanner's diagnostic
+  `print()`s are now proper log records). From `warning` upwards the web
+  GUI's per-request access lines are gone; `debug`/`trace` additionally
+  switch `clamd` and `freshclam` to `LogVerbose yes`.
+
+### Changed
+- `web_port` option description and DOCS now say clearly that the Home
+  Assistant panel (ingress) is hard-wired to port 8200 and the port is not
+  published to the host, so changing `web_port` only breaks access.
+- DOCS: `max_file_size_mb` only takes effect without a restart in
+  `on_demand` mode; in `always` mode it is written to `clamd.conf` at
+  startup and needs a restart.
+- DOCS: removed the stale note about `\\.` in YAML examples, documented the
+  new logging behaviour, and noted that `armv7` images are built but
+  best-effort.
+- Added the MIT LICENSE file the README badge was already linking to.
+
 ## 1.0.12 - 2026-09-13
 
 ### Changed

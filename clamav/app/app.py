@@ -195,5 +195,6 @@ def _install_safe_getfqdn():
 
 
 if __name__ == "__main__":
+    scanner.configure_logging()
     _install_safe_getfqdn()
     app.run(host="0.0.0.0", port=WEB_PORT, debug=False)

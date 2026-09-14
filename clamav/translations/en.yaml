@@ -79,10 +79,19 @@ configuration:
     description: Send a persistent notification to Home Assistant when a scan completes or a threat is detected.
   log_level:
     name: Log Level
-    description: Verbosity of addon logs.
+    description: >-
+      Verbosity of the addon logs (startup script, web GUI, scheduler and
+      scanner). 'debug' and 'trace' additionally enable verbose logging for
+      clamd and freshclam. From 'warning' upwards the web interface's
+      per-request access lines are suppressed too. Requires an addon
+      restart to take effect.
   web_port:
     name: Web GUI Port
-    description: Port for the web interface (default 8200).
+    description: >-
+      Port the web interface listens on inside the container (default 8200).
+      Do NOT change it - the Home Assistant panel (ingress) is fixed to port
+      8200, and the port is not published to the host either, so any other
+      value makes the web interface unreachable.
   admin_password_enabled:
     name: Enable Admin Password Protection
     description: Protects the web interface with a username and password.
