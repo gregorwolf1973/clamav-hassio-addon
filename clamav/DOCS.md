@@ -1,5 +1,7 @@
 # ClamAV Antivirus – Documentation
 
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/gregorwolf1973)
+
 ## Overview
 
 This addon runs ClamAV inside a Home Assistant container and provides:
@@ -25,7 +27,7 @@ On first start, freshclam downloads the ClamAV signature database (~300 MB). Thi
 |--------|---------|-------------|
 | `scan_paths` | `["/share", "/media"]` | Paths to scan |
 | `scan_schedule` | `daily` | `disabled`, `hourly`, `daily`, `weekly` |
-| `scan_hour` | `2` | Hour of day for daily/weekly scan (0–23) |
+| `scan_hour` | `2` | Hour of day for daily/weekly scan (0–23); weekly scans run on Mondays |
 | `daemon_mode` | `always` | `always` (clamd permanent, ~1 GB RAM, fast scans) or `on_demand` (no daemon, ~50 MB RAM idle, +30–60s per scan). See below. |
 | `scan_archives` | `true` | Scan inside archives (ZIP/PDF/Office). Turn off for 5–20× speedup on media. |
 | `skip_images` | `true` | Skip common image formats (jpg, png, gif, webp, heic, tiff, bmp, raw, cr2, nef, arw, dng, svg). Case-insensitive. |
@@ -36,8 +38,11 @@ On first start, freshclam downloads the ClamAV signature database (~300 MB). Thi
 | `auto_quarantine` | `true` | Move infected files to `/data/quarantine` automatically |
 | `max_file_size_mb` | `100` | Skip files larger than this (MB) |
 | `notify_ha` | `true` | Send HA persistent notifications |
+| `log_level` | `info` | `trace`, `debug`, `info`, `notice`, `warning`, `error`, `fatal` |
 | `web_port` | `8200` | Web GUI port |
 | `admin_password_enabled` | `false` | Enable login for web GUI |
+| `admin_username` | `admin` | Username for the web GUI login |
+| `admin_password` | empty | Password for the web GUI login (only used when `admin_password_enabled` is on) |
 
 ### Daemon Mode: RAM vs. Speed Trade-off
 
@@ -135,10 +140,11 @@ Both SimpleNAS addons map HA `share` and `media` volumes, which are the same vol
 
 ## Quarantine
 
-Infected files are moved to `/data/quarantine/` inside the addon's persistent storage. They can be deleted individually via the web GUI. The quarantine directory is **not** accessible from other addons by default.
+Infected files are moved to `/data/quarantine/` inside the addon's persistent storage. They can be deleted or restored to their original location individually via the web GUI. The quarantine directory is **not** accessible from other addons by default.
 
 ## Notes
 
-- ClamAV's signature database is stored in `/var/lib/clamav/` (ephemeral, re-downloaded on each container start). Signatures are updated automatically before each start and can be updated manually via the web GUI.
+- ClamAV's signature database is stored persistently in `/data/clamav-db/` (full download on first start, only updates afterwards). Signatures are updated automatically before each start and can be updated manually via the web GUI.
+- clamd also listens on TCP port `3310` (mapped to host port `3310`) so other add-ons such as Simple NAS can use it for scanning. This requires `daemon_mode: always`; disable the port in the add-on's network settings if nothing uses it.
 - `armv7` support is best-effort; ClamAV may be slow on older ARM hardware.
 - Large NAS libraries (100k+ files) may take 10–30 minutes to scan.
