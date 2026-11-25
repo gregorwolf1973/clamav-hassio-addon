@@ -1,6 +1,7 @@
 name: "ClamAV Antivirus"
 description: "ClamAV-based antivirus scanner for Home Assistant with web GUI, scheduled scans, quarantine and HA notifications"
-version: "1.0.13"
+version: "1.0.14"
+image: ghcr.io/gregorwolf1973/{arch}-addon-clamav
 url: "https://github.com/gregorwolf1973/clamav-hassio-addon"
 slug: "clamav"
 init: false

@@ -1,0 +1,13 @@
+name: Build
+on:
+  push:
+    branches: [master]
+    paths: ["clamav/**"]
+  workflow_dispatch:
+jobs:
+  clamav:
+    permissions: {contents: read, packages: write}
+    uses: gregorwolf1973/ha-addons/.github/workflows/build-addon.yaml@main
+    with:
+      addon: "clamav"
+      image: "ghcr.io/gregorwolf1973/{arch}-addon-clamav"
